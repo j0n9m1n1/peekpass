@@ -19,7 +19,7 @@ permissions:
   contents: write
 
 env:
-  APP_NAME: PeekWarden
+  APP_NAME: peekpass
   # aqtinstall 3.3 cannot resolve Qt 6.11's changed repository layout yet.
   QT_VERSION: ${{ github.event.inputs.qt_version || '6.10.3' }}
 

@@ -1,4 +1,4 @@
-# Project: PeekWarden
+# Project: peekpass
 
 This is a personal cross-platform Bitwarden Quick Access app.
 

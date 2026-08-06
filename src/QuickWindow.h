@@ -1,13 +1,15 @@
 #pragma once
 
-#include "BwClient.h"
+#include "PasswordManager.h"
 
 #include <functional>
+#include <memory>
 
 #include <QElapsedTimer>
 #include <QFutureWatcher>
 #include <QHash>
 #include <QIcon>
+#include <QPoint>
 #include <QSet>
 #include <QTimer>
 #include <QUrl>
@@ -20,6 +22,7 @@ class QHBoxLayout;
 class QLineEdit;
 class QListWidget;
 class QListWidgetItem;
+class QMouseEvent;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QProgressBar;
@@ -34,6 +37,7 @@ public:
     void preloadVault();
     void showQuick();
     void showSettings();
+    QString passwordManagerName() const;
     bool lockVault(QString* errorMessage = nullptr);
     bool logoutVault(QString* errorMessage = nullptr);
     void applySettings();
@@ -51,7 +55,7 @@ private:
     {
         quint64 generation = 0;
         bool available = false;
-        BwClient::StatusInfo statusInfo;
+        PasswordManager::StatusInfo statusInfo;
         QString errorMessage;
     };
 
@@ -80,10 +84,15 @@ private:
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
     void changeEvent(QEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
 private:
     void openSettings();
+    void resetApplicationData();
+    bool logoutPasswordManager(const QString& managerType, QString* errorMessage = nullptr);
     void applyStyle();
     void updateWindowMask();
     void updateFooter();
@@ -117,6 +126,8 @@ private:
     void setAuthInputsEnabled(bool enabled);
     void syncVault();
     void updateAutoSyncTimer();
+    void reloadPasswordManager();
+    void continuePendingPreload();
     void requestFaviconForRow(QListWidgetItem* row, const VaultItem& item);
     void fetchFavicon(const QString& host, const QUrl& url, bool retriedHttp);
     void handleFaviconFinished(QNetworkReply* reply);
@@ -130,6 +141,9 @@ private:
     void closeDetailWindows();
     void copyToClipboard(const QString& text, bool sensitive);
     void copyTextAndHide(const QString& text, bool sensitive);
+    void beginWindowDrag(QMouseEvent* event);
+    bool updateWindowDrag(QMouseEvent* event);
+    void finishWindowDrag();
     void setStatus(const QString& message);
     QListWidgetItem* currentItem() const;
     void moveToConfiguredPosition();
@@ -141,19 +155,23 @@ private:
     QWidget* m_authPanel = nullptr;
     QLabel* m_authTitle = nullptr;
     QLabel* m_authNote = nullptr;
+    QLabel* m_authPasswordManagerLabel = nullptr;
     QLabel* m_authAccountLabel = nullptr;
     QLabel* m_authServerLabel = nullptr;
     QLabel* m_authEmailLabel = nullptr;
     QLabel* m_authPasswordLabel = nullptr;
     QLabel* m_authMethodLabel = nullptr;
     QLabel* m_authCodeLabel = nullptr;
+    QLabel* m_authExtraPasswordLabel = nullptr;
     QLabel* m_authAccount = nullptr;
+    QComboBox* m_authPasswordManager = nullptr;
     QComboBox* m_authServer = nullptr;
     QLineEdit* m_authCustomServer = nullptr;
     QLineEdit* m_authEmail = nullptr;
     QLineEdit* m_authPassword = nullptr;
     QComboBox* m_authMethod = nullptr;
     QLineEdit* m_authCode = nullptr;
+    QLineEdit* m_authExtraPassword = nullptr;
     QWidget* m_authHintBar = nullptr;
     QHBoxLayout* m_authHintLayout = nullptr;
     QLabel* m_authBusyLabel = nullptr;
@@ -167,7 +185,7 @@ private:
     QSet<QString> m_pendingFavicons;
     QTimer m_debounce;
     QTimer m_refreshTimer;
-    BwClient m_bw;
+    std::shared_ptr<PasswordManager> m_passwordManager = std::make_shared<PasswordManager>();
     QFutureWatcher<PrepareResult> m_prepareWatcher;
     QFutureWatcher<AuthResult> m_authWatcher;
     QFutureWatcher<SearchResult> m_searchWatcher;
@@ -180,6 +198,8 @@ private:
     bool m_preloadingVault = false;
     bool m_quietItemLoad = false;
     bool m_syncing = false;
+    bool m_preloadPending = false;
+    bool m_resetting = false;
     quint64 m_vaultGeneration = 0;
     quint64 m_clipboardGeneration = 0;
     QElapsedTimer m_preservedSearchTimer;
@@ -187,5 +207,9 @@ private:
     QString m_preservedItemId;
     QString m_currentUserEmail;
     QString m_currentServerUrl;
+    bool m_dragging = false;
+    bool m_dragMoved = false;
+    QPoint m_dragOffset;
+    QPoint m_dragStartPosition;
     std::function<void()> m_settingsChanged;
 };

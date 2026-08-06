@@ -10,11 +10,11 @@ namespace
     QT_TRANSLATE_NOOP("Main", "Bitwarden Lock"),
     QT_TRANSLATE_NOOP("Main", "Bitwarden vault locked."),
     QT_TRANSLATE_NOOP("Main", "System Tray"),
-    QT_TRANSLATE_NOOP("Main", "System tray is not available. PeekWarden will keep running without a tray icon."),
+    QT_TRANSLATE_NOOP("Main", "System tray is not available. peekpass will keep running without a tray icon."),
     QT_TRANSLATE_NOOP("Main", "Hotkey"),
     QT_TRANSLATE_NOOP("Main", "Failed to register the configured hotkey."),
     QT_TRANSLATE_NOOP("Main", "Another app, such as 1Password, may already be using this shortcut."),
-    QT_TRANSLATE_NOOP("Main", "PeekWarden is running. Press %1 to open quick access.")
+    QT_TRANSLATE_NOOP("Main", "peekpass is running. Press %1 to open quick access.")
 };
 
 [[maybe_unused]] const char* const WinHotkeyMessages[] = {
@@ -22,6 +22,11 @@ namespace
     QT_TRANSLATE_NOOP("WinHotkey", "Windows error %1"),
     QT_TRANSLATE_NOOP("WinHotkey", "%1 is not supported as a global hotkey yet."),
     QT_TRANSLATE_NOOP("WinHotkey", "Global hotkeys are only implemented on Windows in this MVP.")
+};
+
+[[maybe_unused]] const char* const MainPasswordManagerMessages[] = {
+    QT_TRANSLATE_NOOP("Main", "Log out"),
+    QT_TRANSLATE_NOOP("Main", "Proton Pass session signed out.")
 };
 
 [[maybe_unused]] const char* const BwClientMessages[] = {
@@ -83,6 +88,7 @@ namespace
     QT_TRANSLATE_NOOP("QuickWindow", "Unlock"),
     QT_TRANSLATE_NOOP("QuickWindow", "Bitwarden Login"),
     QT_TRANSLATE_NOOP("QuickWindow", "First use requires logging in to your Bitwarden CLI account."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Password manager"),
     QT_TRANSLATE_NOOP("QuickWindow", "Log in"),
     QT_TRANSLATE_NOOP("QuickWindow", "Hide"),
     QT_TRANSLATE_NOOP("QuickWindow", "Settings..."),
@@ -158,7 +164,7 @@ namespace
 };
 
 [[maybe_unused]] const char* const SettingsDialogMessages[] = {
-    QT_TRANSLATE_NOOP("SettingsDialog", "PeekWarden Settings"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "peekpass Settings"),
     QT_TRANSLATE_NOOP("SettingsDialog", " rows"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Show shortcut hints in quick window"),
     QT_TRANSLATE_NOOP("SettingsDialog", "1Password style"),
@@ -185,7 +191,7 @@ namespace
     QT_TRANSLATE_NOOP("SettingsDialog", "Start with Windows"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Start on Windows login"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Log out of Bitwarden..."),
-    QT_TRANSLATE_NOOP("SettingsDialog", "Run bw logout and remove the stored PeekWarden session."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Run bw logout and remove the stored peekpass session."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Auto: app folder bw.exe, then PATH bw"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Browse..."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Auto"),
@@ -206,17 +212,84 @@ namespace
     QT_TRANSLATE_NOOP("SettingsDialog", "Auto sync"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Security/startup"),
     QT_TRANSLATE_NOOP("SettingsDialog", "bw.exe location"),
-    QT_TRANSLATE_NOOP("SettingsDialog", "Leave bw.exe empty to use bw.exe beside PeekWarden first, then bw from PATH. Session storage does not store the master password."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Leave bw.exe empty to use bw.exe beside peekpass first, then bw from PATH. Session storage does not store the master password."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Bitwarden CLI download and setup:"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Select Bitwarden CLI"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Bitwarden CLI (bw.exe bw);;All files (*)"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Log out of Bitwarden"),
-    QT_TRANSLATE_NOOP("SettingsDialog", "This will run bw logout, clear cached vault data, and remove the stored PeekWarden session. Continue?"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "This will run bw logout, clear cached vault data, and remove the stored peekpass session. Continue?"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Reset peekpass..."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Log out installed password-manager CLIs and clear all local peekpass data."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Reset peekpass"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "This logs out installed Bitwarden and Proton Pass CLIs, clears local peekpass settings, cached data, Windows secure sessions, and Windows startup registration. The app will close and show its first-run state when opened again. Continue?"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Hotkey"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Choose a quick access hotkey first."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Not set"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Quick access: %1\nEnter: Copy password\nCtrl+Enter / Ctrl+C: Copy username\nCtrl+Shift+C: Copy password\nAlt+T / Ctrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close")
+};
+
+[[maybe_unused]] const char* const QuickWindowPasswordManagerMessages[] = {
+    QT_TRANSLATE_NOOP("QuickWindow", "Pass extra password"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Only if configured"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Unlock Proton Pass"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Proton Pass Login"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Sign in to pass-cli with your Proton account. For security keys, run pass-cli login once in a terminal, then reopen peekpass."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Two-factor code"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Logging in to %1..."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Unlocking %1..."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Syncing Proton Pass..."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Loading Proton Pass items..."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Preparing Proton Pass..."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Sign in to Proton Pass first."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Resetting peekpass..."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Signing out and clearing local data...")
+};
+
+[[maybe_unused]] const char* const PasswordManagerMessages[] = {
+    QT_TRANSLATE_NOOP("PasswordManager", "Proton Pass session unlocking is not available in peekpass yet. Log in again instead.")
+};
+
+[[maybe_unused]] const char* const SettingsDialogPasswordManagerMessages[] = {
+    QT_TRANSLATE_NOOP("SettingsDialog", "Password manager"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Proton Pass CLI"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "pass-cli location"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Auto: app folder, standard Proton Pass install, then PATH pass-cli"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Leave pass-cli.exe empty to use the copy beside peekpass first, then the standard Proton Pass install, then pass-cli from PATH. Proton Pass CLI keeps its own local session."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Proton Pass CLI installation:"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Select Proton Pass CLI"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Proton Pass CLI (pass-cli.exe pass-cli);;All files (*)"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "This will run pass-cli logout and clear cached vault data. Continue?"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Log out of Proton Pass..."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Run pass-cli logout and clear cached vault data."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Proton Pass CLI manages its own session.")
+};
+
+[[maybe_unused]] const char* const ProtonPassClientMessages[] = {
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Login"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Secure note"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Card"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Identity"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "SSH key"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Alias"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Custom"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Section"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Extra fields"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Item data"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Proton Pass metadata"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Proton Pass CLI was not found or could not run.\n\npeekpass checked the app folder, the standard Proton Pass install location, and PATH. Set the pass-cli.exe location in Settings if needed."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not parse Proton Pass vault list: %1"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not parse Proton Pass item list: %1"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not parse Proton Pass CLI status: %1"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not parse the Proton Pass OTP code."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not parse Proton Pass item: %1"),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Invalid Proton Pass item identifier."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Enter your Proton account email and password."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not create a protected temporary credential file."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "This item has multiple OTP fields. Open Details and copy the required code."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Timed out while running %1."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "%1 crashed."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "%1 failed with exit code %2.")
 };
 }

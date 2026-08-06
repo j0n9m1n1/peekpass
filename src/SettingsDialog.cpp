@@ -61,7 +61,7 @@ int recommendedFontSize(const QString& languageCode)
 SettingsDialog::SettingsDialog(QWidget* parent)
     : QDialog(parent)
 {
-    setWindowTitle(uiText("PeekWarden Settings", "PeekWarden 설정"));
+    setWindowTitle(uiText("peekpass Settings", "peekpass 설정"));
     setModal(true);
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     resize(760, 540);
@@ -84,6 +84,14 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     m_themeCombo->setCurrentIndex(themeIndex >= 0 ? themeIndex : 0);
     m_themeCombo->setMinimumWidth(180);
     m_themeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    m_passwordManagerCombo = new QComboBox(this);
+    m_passwordManagerCombo->addItem(QStringLiteral("Bitwarden"), QStringLiteral("bitwarden"));
+    m_passwordManagerCombo->addItem(QStringLiteral("Proton Pass"), QStringLiteral("protonpass"));
+    const int passwordManagerIndex = m_passwordManagerCombo->findData(AppSettings::passwordManagerType());
+    m_passwordManagerCombo->setCurrentIndex(passwordManagerIndex >= 0 ? passwordManagerIndex : 0);
+    m_passwordManagerCombo->setMinimumWidth(180);
+    m_passwordManagerCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     m_hotkeyEdit = new QKeySequenceEdit(AppSettings::showHotkey(), this);
     m_hotkeyEdit->setMaximumSequenceLength(1);
@@ -251,8 +259,14 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     m_logoutButton = new QPushButton(uiText("Log out of Bitwarden...", "Bitwarden 로그아웃..."), this);
     m_logoutButton->setObjectName("dangerButton");
     m_logoutButton->setToolTip(
-        uiText("Run bw logout and remove the stored PeekWarden session.",
-               "bw logout을 실행하고 저장된 PeekWarden 세션을 제거합니다."));
+        uiText("Run bw logout and remove the stored peekpass session.",
+               "bw logout을 실행하고 저장된 peekpass 세션을 제거합니다."));
+
+    m_resetButton = new QPushButton(uiText("Reset peekpass...", "peekpass 초기화..."), this);
+    m_resetButton->setObjectName("dangerButton");
+    m_resetButton->setToolTip(
+        uiText("Log out installed password-manager CLIs and clear all local peekpass data.",
+               "설치된 비밀번호 관리자 CLI에서 로그아웃하고 모든 로컬 peekpass 데이터를 지웁니다."));
 
     m_bwPathEdit = new QLineEdit(AppSettings::bwProgramOverride(), this);
     m_bwPathEdit->setMinimumWidth(120);
@@ -267,6 +281,21 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     bwLayout->addWidget(m_bwPathEdit, 1);
     bwLayout->addWidget(browseButton);
     bwLayout->addWidget(autoButton);
+
+    m_protonPassPathEdit = new QLineEdit(AppSettings::protonPassProgramOverride(), this);
+    m_protonPassPathEdit->setMinimumWidth(120);
+    m_protonPassPathEdit->setPlaceholderText(
+        uiText("Auto: app folder, standard Proton Pass install, then PATH pass-cli",
+               "자동: 앱 폴더, Proton Pass 기본 설치 경로, 그 다음 PATH의 pass-cli"));
+
+    auto* protonBrowseButton = new QPushButton(uiText("Browse...", "찾기..."), this);
+    auto* protonAutoButton = new QPushButton(uiText("Auto", "자동"), this);
+
+    auto* protonPassLayout = new QHBoxLayout;
+    protonPassLayout->setContentsMargins(0, 0, 0, 0);
+    protonPassLayout->addWidget(m_protonPassPathEdit, 1);
+    protonPassLayout->addWidget(protonBrowseButton);
+    protonPassLayout->addWidget(protonAutoButton);
 
     auto* sizeLayout = new QHBoxLayout;
     sizeLayout->setContentsMargins(0, 0, 0, 0);
@@ -286,8 +315,8 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     searchDisplayLayout->setColumnStretch(1, 1);
 
     auto* note = new QLabel(
-        uiText("Leave bw.exe empty to use bw.exe beside PeekWarden first, then bw from PATH. Session storage does not store the master password.",
-               "비워두면 PeekWarden 실행 파일 옆의 bw.exe를 먼저 사용하고, 없으면 PATH의 bw를 사용합니다. 세션 저장은 마스터 비밀번호를 저장하지 않습니다."),
+        uiText("Leave bw.exe empty to use bw.exe beside peekpass first, then bw from PATH. Session storage does not store the master password.",
+               "비워두면 peekpass 실행 파일 옆의 bw.exe를 먼저 사용하고, 없으면 PATH의 bw를 사용합니다. 세션 저장은 마스터 비밀번호를 저장하지 않습니다."),
         this);
     note->setWordWrap(true);
     note->setObjectName("settingsNote");
@@ -301,6 +330,23 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     cliDocs->setTextInteractionFlags(Qt::TextBrowserInteraction);
     cliDocs->setOpenExternalLinks(true);
     cliDocs->setWordWrap(true);
+
+    auto* protonNote = new QLabel(
+        uiText("Leave pass-cli.exe empty to use the copy beside peekpass first, then the standard Proton Pass install, then pass-cli from PATH. Proton Pass CLI keeps its own local session.",
+               "비워두면 peekpass 실행 파일 옆의 pass-cli.exe, Proton Pass 기본 설치 경로, PATH의 pass-cli 순서로 사용함. Proton Pass CLI는 자체 로컬 세션을 관리함."),
+        this);
+    protonNote->setWordWrap(true);
+    protonNote->setObjectName("settingsNote");
+
+    auto* protonCliDocs = new QLabel(
+        QString("%1 <a href=\"https://protonpass.github.io/pass-cli/get-started/installation/\">https://protonpass.github.io/pass-cli/get-started/installation/</a>")
+            .arg(uiText("Proton Pass CLI installation:", "Proton Pass CLI 설치:")),
+        this);
+    protonCliDocs->setObjectName("settingsLink");
+    protonCliDocs->setTextFormat(Qt::RichText);
+    protonCliDocs->setTextInteractionFlags(Qt::TextBrowserInteraction);
+    protonCliDocs->setOpenExternalLinks(true);
+    protonCliDocs->setWordWrap(true);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 
@@ -345,6 +391,8 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     generalForm->addRow(uiText("Quick access hotkey", "빠른 액세스 단축키"), m_hotkeyEdit);
     generalForm->addRow(uiText("Shortcut set", "단축키 세트"), m_shortcutPresetCombo);
 
+    generalForm->addRow(uiText("Password manager", "비밀번호 관리자"), m_passwordManagerCombo);
+
     auto* shortcutPanel = new QGroupBox(this);
     shortcutPanel->setObjectName("settingsGroup");
     auto* shortcutColumn = new QVBoxLayout(shortcutPanel);
@@ -379,6 +427,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     securityForm->addRow(m_credentialSessionStorageCheck);
     securityForm->addRow(m_startOnLoginCheck);
     securityForm->addRow(m_logoutButton);
+    securityForm->addRow(m_resetButton);
     behaviorTab->addStretch(1);
 
     auto* bitwardenTab = makeTab(uiText("Bitwarden CLI", "Bitwarden CLI"));
@@ -387,6 +436,13 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     bitwardenTab->addWidget(note);
     bitwardenTab->addWidget(cliDocs);
     bitwardenTab->addStretch(1);
+
+    auto* protonPassTab = makeTab(uiText("Proton Pass CLI", "Proton Pass CLI"));
+    auto* protonPassForm = makeGroup(uiText("Proton Pass CLI", "Proton Pass CLI"), protonPassTab);
+    protonPassForm->addRow(uiText("pass-cli location", "pass-cli 위치"), protonPassLayout);
+    protonPassTab->addWidget(protonNote);
+    protonPassTab->addWidget(protonCliDocs);
+    protonPassTab->addStretch(1);
 
     auto* titleLabel = new QLabel(windowTitle(), this);
     titleLabel->setObjectName("settingsDialogTitle");
@@ -412,6 +468,10 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
     connect(m_themeCombo, &QComboBox::currentIndexChanged, this, [this] {
         applyDialogStyle();
+    });
+
+    connect(m_passwordManagerCombo, &QComboBox::currentIndexChanged, this, [this] {
+        updatePasswordManagerControls();
     });
 
     connect(m_customPositionCheck, &QCheckBox::toggled, this, [this](bool enabled) {
@@ -442,8 +502,19 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         m_bwPathEdit->clear();
     });
 
+    connect(protonBrowseButton, &QPushButton::clicked, this, [this] {
+        chooseProtonPassProgram();
+    });
+
+    connect(protonAutoButton, &QPushButton::clicked, this, [this] {
+        m_protonPassPathEdit->clear();
+    });
+
     connect(m_logoutButton, &QPushButton::clicked, this, [this] {
         requestLogout();
+    });
+    connect(m_resetButton, &QPushButton::clicked, this, [this] {
+        requestReset();
     });
 
     connect(buttons, &QDialogButtonBox::accepted, this, [this] {
@@ -454,12 +525,23 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         reject();
     });
 
+    updatePasswordManagerControls();
     updateShortcutGuide();
 }
 
 bool SettingsDialog::logoutRequested() const
 {
     return m_logoutRequested;
+}
+
+QString SettingsDialog::logoutPasswordManagerType() const
+{
+    return m_logoutPasswordManagerType;
+}
+
+bool SettingsDialog::resetRequested() const
+{
+    return m_resetRequested;
 }
 
 void SettingsDialog::mousePressEvent(QMouseEvent* event)
@@ -503,13 +585,41 @@ void SettingsDialog::chooseBwProgram()
         m_bwPathEdit->setText(path);
 }
 
+void SettingsDialog::chooseProtonPassProgram()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this,
+        uiText("Select Proton Pass CLI", "Proton Pass CLI 선택"),
+        m_protonPassPathEdit->text(),
+        uiText("Proton Pass CLI (pass-cli.exe pass-cli);;All files (*)", "Proton Pass CLI (pass-cli.exe pass-cli);;모든 파일 (*)"));
+
+    if (!path.isEmpty())
+        m_protonPassPathEdit->setText(path);
+}
+
 void SettingsDialog::requestLogout()
 {
+    const QString managerType = m_passwordManagerCombo->currentData().toString();
+    if (managerType == QStringLiteral("protonpass")) {
+        const QMessageBox::StandardButton answer = QMessageBox::question(
+            this,
+            QStringLiteral("Proton Pass"),
+            uiText("This will run pass-cli logout and clear cached vault data. Continue?", "pass-cli logout을 실행하고 캐시된 보관함 데이터를 비움. 계속할까?"),
+            QMessageBox::Yes | QMessageBox::Cancel,
+            QMessageBox::Cancel);
+        if (answer == QMessageBox::Yes) {
+            m_logoutRequested = true;
+            m_logoutPasswordManagerType = managerType;
+            accept();
+        }
+        return;
+    }
+
     const QMessageBox::StandardButton answer = QMessageBox::question(
         this,
         uiText("Log out of Bitwarden", "Bitwarden 로그아웃"),
-        uiText("This will run bw logout, clear cached vault data, and remove the stored PeekWarden session. Continue?",
-               "bw logout을 실행하고, 캐시된 보관함 데이터를 비우고, 저장된 PeekWarden 세션을 제거합니다. 계속할까요?"),
+        uiText("This will run bw logout, clear cached vault data, and remove the stored peekpass session. Continue?",
+               "bw logout을 실행하고, 캐시된 보관함 데이터를 비우고, 저장된 peekpass 세션을 제거합니다. 계속할까요?"),
         QMessageBox::Yes | QMessageBox::Cancel,
         QMessageBox::Cancel);
 
@@ -517,6 +627,23 @@ void SettingsDialog::requestLogout()
         return;
 
     m_logoutRequested = true;
+    m_logoutPasswordManagerType = managerType;
+    accept();
+}
+
+void SettingsDialog::requestReset()
+{
+    const QMessageBox::StandardButton answer = QMessageBox::warning(
+        this,
+        uiText("Reset peekpass", "peekpass 초기화"),
+        uiText("This logs out installed Bitwarden and Proton Pass CLIs, clears local peekpass settings, cached data, Windows secure sessions, and Windows startup registration. The app will close and show its first-run state when opened again. Continue?",
+               "설치된 Bitwarden 및 Proton Pass CLI에서 로그아웃하고, 로컬 peekpass 설정, 캐시 데이터, Windows 보안 세션, Windows 자동 시작 항목을 지웁니다. 앱은 종료되며 다음 실행에서 첫 화면이 표시됩니다. 계속할까?"),
+        QMessageBox::Yes | QMessageBox::Cancel,
+        QMessageBox::Cancel);
+    if (answer != QMessageBox::Yes)
+        return;
+
+    m_resetRequested = true;
     accept();
 }
 
@@ -532,6 +659,7 @@ void SettingsDialog::saveAndAccept()
 
     AppSettings::setLanguage(m_languageCombo->currentData().toString());
     AppSettings::setTheme(m_themeCombo->currentData().toString());
+    AppSettings::setPasswordManagerType(m_passwordManagerCombo->currentData().toString());
     AppSettings::setShowHotkey(m_hotkeyEdit->keySequence());
     AppSettings::setShortcutPreset(m_shortcutPresetCombo->currentData().toString());
     AppSettings::setWindowWidth(m_widthSpin->value());
@@ -557,7 +685,30 @@ void SettingsDialog::saveAndAccept()
     AppSettings::setCredentialSessionStorageEnabled(m_credentialSessionStorageCheck->isChecked());
     AppSettings::setStartOnLoginEnabled(m_startOnLoginCheck->isChecked());
     AppSettings::setBwProgramOverride(m_bwPathEdit->text());
+    AppSettings::setProtonPassProgramOverride(m_protonPassPathEdit->text());
     accept();
+}
+
+void SettingsDialog::updatePasswordManagerControls()
+{
+    const bool protonPass = m_passwordManagerCombo
+        && m_passwordManagerCombo->currentData().toString() == QStringLiteral("protonpass");
+
+    if (m_credentialSessionStorageCheck) {
+        m_credentialSessionStorageCheck->setEnabled(!protonPass);
+        m_credentialSessionStorageCheck->setToolTip(protonPass
+                ? uiText("Proton Pass CLI manages its own session.", "Proton Pass CLI가 자체 세션을 관리함.")
+                : QString());
+    }
+
+    if (m_logoutButton) {
+        m_logoutButton->setText(protonPass
+                ? uiText("Log out of Proton Pass...", "Proton Pass 로그아웃...")
+                : uiText("Log out of Bitwarden..."));
+        m_logoutButton->setToolTip(protonPass
+                ? uiText("Run pass-cli logout and clear cached vault data.", "pass-cli logout을 실행하고 캐시된 보관함 데이터를 비움.")
+                : uiText("Run bw logout and remove the stored peekpass session."));
+    }
 }
 
 void SettingsDialog::applyDialogStyle()

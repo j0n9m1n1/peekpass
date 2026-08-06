@@ -25,9 +25,10 @@ QString uiText(const char* ko, const char* en)
 int main(int argc, char* argv[])
 {
     QApplication app(argc, argv);
-    QApplication::setApplicationName("PeekWarden");
-    QApplication::setOrganizationName("PeekWarden");
+    QApplication::setApplicationName("peekpass");
+    QApplication::setOrganizationName("peekpass");
     QApplication::setQuitOnLastWindowClosed(false);
+    AppSettings::migratePreviousSettings();
     AppSettings::applyStartupPreference();
 
     QTranslator appTranslator;
@@ -55,10 +56,12 @@ int main(int argc, char* argv[])
         quitAction->setText(uiText("종료", "Quit"));
     };
     updateTrayTexts();
+    if (window.passwordManagerName() == QStringLiteral("Proton Pass"))
+        lockAction->setText(uiText("로그아웃", "Log out"));
 
     QSystemTrayIcon trayIcon;
     trayIcon.setIcon(QApplication::style()->standardIcon(QStyle::SP_ComputerIcon));
-    trayIcon.setToolTip("PeekWarden");
+    trayIcon.setToolTip("peekpass");
     trayIcon.setContextMenu(&trayMenu);
 
     QObject::connect(openAction, &QAction::triggered, &window, [&window] {
@@ -67,13 +70,23 @@ int main(int argc, char* argv[])
 
     QObject::connect(lockAction, &QAction::triggered, &window, [&window, &trayIcon] {
         QString errorMessage;
+        if (window.passwordManagerName() == QStringLiteral("Proton Pass")) {
+            if (!window.lockVault(&errorMessage) && !errorMessage.isEmpty()) {
+                QMessageBox::warning(&window, QStringLiteral("Proton Pass"), errorMessage);
+                return;
+            }
+
+            trayIcon.showMessage("peekpass", uiText("Proton Pass 세션에서 로그아웃했습니다.", "Proton Pass session signed out."));
+            return;
+        }
+
         if (!window.lockVault(&errorMessage) && !errorMessage.isEmpty()) {
             QMessageBox::warning(&window, uiText("Bitwarden 잠금", "Bitwarden Lock"), errorMessage);
             return;
         }
 
         trayIcon.showMessage(
-            "PeekWarden",
+            "peekpass",
             uiText("Bitwarden vault를 잠갔습니다.", "Bitwarden vault locked."));
     });
 
@@ -98,8 +111,8 @@ int main(int argc, char* argv[])
         QMessageBox::warning(
             nullptr,
             uiText("시스템 트레이", "System Tray"),
-            uiText("시스템 트레이를 사용할 수 없습니다. PeekWarden은 트레이 아이콘 없이 계속 실행됩니다.",
-                   "System tray is not available. PeekWarden will keep running without a tray icon."));
+            uiText("시스템 트레이를 사용할 수 없습니다. peekpass는 트레이 아이콘 없이 계속 실행됩니다.",
+                   "System tray is not available. peekpass will keep running without a tray icon."));
     }
 
 #ifdef Q_OS_WIN
@@ -109,6 +122,8 @@ int main(int argc, char* argv[])
     window.setSettingsChangedCallback([&] {
         reloadTranslator();
         updateTrayTexts();
+        if (window.passwordManagerName() == QStringLiteral("Proton Pass"))
+            lockAction->setText(uiText("로그아웃", "Log out"));
         hotkey.unregisterHotkey();
         if (!hotkey.registerHotkey()) {
             QMessageBox::warning(
@@ -147,9 +162,9 @@ int main(int argc, char* argv[])
                 return;
 
             trayIcon.showMessage(
-                "PeekWarden",
-                uiText("PeekWarden이 실행 중입니다.\n%1 키로 빠른 액세스를 열 수 있습니다.",
-                       "PeekWarden is running.\nPress %1 to open quick access.")
+                "peekpass",
+                uiText("peekpass가 실행 중입니다.\n%1 키로 빠른 액세스를 열 수 있습니다.",
+                       "peekpass is running.\nPress %1 to open quick access.")
                     .arg(AppSettings::showHotkeyText()),
                 QSystemTrayIcon::Information,
                 3500);

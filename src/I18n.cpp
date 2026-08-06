@@ -13,7 +13,7 @@
 
 namespace
 {
-constexpr const char* TranslationPrefix = "PeekWarden_";
+constexpr const char* TranslationPrefix = "peekpass_";
 
 QString normalizedLanguageCode(const QString& languageCode)
 {
@@ -51,11 +51,11 @@ QStringList availableLanguageCodes()
     for (const QString& directoryPath : translationDirectories()) {
         const QDir directory(directoryPath);
         const QStringList files = directory.entryList(
-            { QStringLiteral("PeekWarden_*.qm") },
+            { QStringLiteral("peekpass_*.qm") },
             QDir::Files | QDir::Readable);
         for (const QString& file : files) {
             QString code = file;
-            code.remove(QStringLiteral("PeekWarden_"));
+            code.remove(QStringLiteral("peekpass_"));
             code.chop(QStringLiteral(".qm").size());
             if (!code.trimmed().isEmpty())
                 codes.insert(normalizedLanguageCode(code));

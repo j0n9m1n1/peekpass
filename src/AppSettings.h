@@ -6,6 +6,9 @@
 class AppSettings
 {
 public:
+    static void migratePreviousSettings();
+    static void resetUserData();
+
     static QKeySequence showHotkey();
     static void setShowHotkey(const QKeySequence& sequence);
     static QString showHotkeyText();
@@ -83,8 +86,14 @@ public:
     static void setStartOnLoginEnabled(bool enabled);
     static void applyStartupPreference();
 
+    static QString passwordManagerType();
+    static void setPasswordManagerType(const QString& type);
+
     static QString bwProgramOverride();
     static void setBwProgramOverride(const QString& path);
+
+    static QString protonPassProgramOverride();
+    static void setProtonPassProgramOverride(const QString& path);
 
     static QString bitwardenServerMode();
     static void setBitwardenServerMode(const QString& mode);

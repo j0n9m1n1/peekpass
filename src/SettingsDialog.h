@@ -2,6 +2,7 @@
 
 #include <QDialog>
 #include <QPoint>
+#include <QString>
 
 class QLabel;
 class QCheckBox;
@@ -19,6 +20,8 @@ class SettingsDialog : public QDialog
 public:
     explicit SettingsDialog(QWidget* parent = nullptr);
     bool logoutRequested() const;
+    QString logoutPasswordManagerType() const;
+    bool resetRequested() const;
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
@@ -27,14 +30,18 @@ protected:
 
 private:
     void chooseBwProgram();
+    void chooseProtonPassProgram();
     void requestLogout();
+    void requestReset();
     void saveAndAccept();
     void applyDialogStyle();
     void updateOpacityLabel();
     void updateShortcutGuide();
+    void updatePasswordManagerControls();
     void applyRecommendedFontForLanguage(const QString& languageCode);
 
     QComboBox* m_languageCombo = nullptr;
+    QComboBox* m_passwordManagerCombo = nullptr;
     QKeySequenceEdit* m_hotkeyEdit = nullptr;
     QSpinBox* m_widthSpin = nullptr;
     QSpinBox* m_heightSpin = nullptr;
@@ -63,8 +70,12 @@ private:
     QCheckBox* m_credentialSessionStorageCheck = nullptr;
     QCheckBox* m_startOnLoginCheck = nullptr;
     QPushButton* m_logoutButton = nullptr;
+    QPushButton* m_resetButton = nullptr;
     QLineEdit* m_bwPathEdit = nullptr;
+    QLineEdit* m_protonPassPathEdit = nullptr;
     bool m_dragging = false;
     QPoint m_dragOffset;
     bool m_logoutRequested = false;
+    QString m_logoutPasswordManagerType;
+    bool m_resetRequested = false;
 };

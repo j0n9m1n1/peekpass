@@ -32,7 +32,9 @@
 namespace
 {
 #ifdef Q_OS_WIN
-constexpr wchar_t CredentialTargetName[] = L"PeekWarden.BitwardenSession";
+constexpr wchar_t CredentialTargetName[] = L"peekpass.BitwardenSession";
+constexpr wchar_t PreviousCredentialTargetName[] = L"PeekPass.BitwardenSession";
+constexpr wchar_t OlderCredentialTargetName[] = L"PeekWarden.BitwardenSession";
 #endif
 
 void setError(QString* target, const QString& message)
@@ -189,10 +191,10 @@ VaultItem vaultItemFromObject(const QJsonObject& object)
 }
 
 #ifdef Q_OS_WIN
-QString readStoredSession()
+QString readStoredSessionForTarget(const wchar_t* targetName)
 {
     PCREDENTIALW credential = nullptr;
-    if (!CredReadW(CredentialTargetName, CRED_TYPE_GENERIC, 0, &credential))
+    if (!CredReadW(targetName, CRED_TYPE_GENERIC, 0, &credential))
         return {};
 
     QByteArray data(reinterpret_cast<const char*>(credential->CredentialBlob),
@@ -201,25 +203,60 @@ QString readStoredSession()
     return QString::fromUtf8(data).trimmed();
 }
 
-void writeStoredSession(const QString& session)
+bool writeStoredSessionForTarget(const wchar_t* targetName, const QString& session)
 {
     const QByteArray data = session.toUtf8();
     if (data.isEmpty())
-        return;
+        return false;
 
     CREDENTIALW credential = {};
     credential.Type = CRED_TYPE_GENERIC;
-    credential.TargetName = const_cast<LPWSTR>(CredentialTargetName);
+    credential.TargetName = const_cast<LPWSTR>(targetName);
     credential.CredentialBlobSize = static_cast<DWORD>(data.size());
     credential.CredentialBlob = reinterpret_cast<LPBYTE>(const_cast<char*>(data.constData()));
     credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
-    credential.UserName = const_cast<LPWSTR>(L"PeekWarden");
-    CredWriteW(&credential, 0);
+    credential.UserName = const_cast<LPWSTR>(L"peekpass");
+    return CredWriteW(&credential, 0);
+}
+
+void deleteStoredSessionForTarget(const wchar_t* targetName)
+{
+    CredDeleteW(targetName, CRED_TYPE_GENERIC, 0);
+}
+
+QString readStoredSession()
+{
+    QString session = readStoredSessionForTarget(CredentialTargetName);
+    if (!session.isEmpty())
+        return session;
+
+    const wchar_t* const previousTargetNames[] = {
+        PreviousCredentialTargetName,
+        OlderCredentialTargetName
+    };
+    for (const wchar_t* targetName : previousTargetNames) {
+        session = readStoredSessionForTarget(targetName);
+        if (session.isEmpty())
+            continue;
+
+        if (writeStoredSessionForTarget(CredentialTargetName, session))
+            deleteStoredSessionForTarget(targetName);
+        return session;
+    }
+
+    return session;
+}
+
+void writeStoredSession(const QString& session)
+{
+    writeStoredSessionForTarget(CredentialTargetName, session);
 }
 
 void deleteStoredSession()
 {
-    CredDeleteW(CredentialTargetName, CRED_TYPE_GENERIC, 0);
+    deleteStoredSessionForTarget(CredentialTargetName);
+    deleteStoredSessionForTarget(PreviousCredentialTargetName);
+    deleteStoredSessionForTarget(OlderCredentialTargetName);
 }
 #else
 QString readStoredSession()
@@ -432,6 +469,11 @@ void BwClient::clearSession()
     QMutexLocker<QMutex> stateLocker(&m_stateMutex);
     m_session.fill(QChar('\0'));
     m_session.clear();
+    deleteStoredSession();
+}
+
+void BwClient::clearStoredSessionData()
+{
     deleteStoredSession();
 }
 

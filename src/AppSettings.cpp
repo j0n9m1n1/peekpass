@@ -42,8 +42,13 @@ const char* AutoSyncIntervalMinutesKey = "bitwarden/autoSyncIntervalMinutes";
 const char* CloseOnFocusLossKey = "window/closeOnFocusLoss";
 const char* CredentialSessionStorageEnabledKey = "security/credentialSessionStorageEnabled";
 const char* StartOnLoginKey = "system/startOnLogin";
-const char* StartOnLoginName = "PeekWarden";
+const char* StartOnLoginName = "peekpass";
+const char* PreviousStartOnLoginName = "PeekPass";
+const char* OlderStartOnLoginName = "PeekWarden";
+const char* PreviousSettingsMigratedKey = "system/migratedFromPreviousName";
+const char* PasswordManagerTypeKey = "passwordManager/type";
 const char* BwProgramOverrideKey = "bitwarden/bwProgram";
+const char* ProtonPassProgramOverrideKey = "protonPass/passCliProgram";
 const char* BitwardenServerModeKey = "bitwarden/serverMode";
 const char* CustomBitwardenServerUrlKey = "bitwarden/customServerUrl";
 const char* LanguageKey = "ui/language";
@@ -57,6 +62,67 @@ QString quotedApplicationPath()
 {
     return QString("\"%1\"").arg(QDir::toNativeSeparators(QCoreApplication::applicationFilePath()));
 }
+
+void removeStartupEntries()
+{
+#ifdef Q_OS_WIN
+    QSettings runKey(
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+        QSettings::NativeFormat);
+    runKey.remove(StartOnLoginName);
+    runKey.remove(PreviousStartOnLoginName);
+    runKey.remove(OlderStartOnLoginName);
+#endif
+}
+
+void clearSettingsForApplication(const QString& applicationName)
+{
+    QSettings settings(
+        QSettings::NativeFormat,
+        QSettings::UserScope,
+        applicationName,
+        applicationName);
+    settings.clear();
+    settings.sync();
+}
+}
+
+void AppSettings::migratePreviousSettings()
+{
+    QSettings current;
+    if (current.value(PreviousSettingsMigratedKey, false).toBool())
+        return;
+
+    const auto copyMissingValues = [&current](const QString& applicationName) {
+        QSettings previous(
+            QSettings::NativeFormat,
+            QSettings::UserScope,
+            applicationName,
+            applicationName);
+        for (const QString& key : previous.allKeys()) {
+            if (!current.contains(key))
+                current.setValue(key, previous.value(key));
+        }
+    };
+
+    copyMissingValues(QStringLiteral("PeekPass"));
+    copyMissingValues(QStringLiteral("PeekWarden"));
+
+    current.setValue(PreviousSettingsMigratedKey, true);
+    current.sync();
+}
+
+void AppSettings::resetUserData()
+{
+    removeStartupEntries();
+    clearSettingsForApplication(QStringLiteral("PeekPass"));
+    clearSettingsForApplication(QStringLiteral("PeekWarden"));
+
+    QSettings current;
+    current.clear();
+    // Prevent cleared previous-name settings from being imported again on restart.
+    current.setValue(PreviousSettingsMigratedKey, true);
+    current.sync();
 }
 
 QKeySequence AppSettings::showHotkey()
@@ -334,16 +400,32 @@ void AppSettings::setStartOnLoginEnabled(bool enabled)
     QSettings runKey(
         "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
         QSettings::NativeFormat);
-    if (enabled)
+    if (enabled) {
         runKey.setValue(StartOnLoginName, quotedApplicationPath());
-    else
-        runKey.remove(StartOnLoginName);
+        runKey.remove(PreviousStartOnLoginName);
+        runKey.remove(OlderStartOnLoginName);
+    } else {
+        removeStartupEntries();
+    }
 #endif
 }
 
 void AppSettings::applyStartupPreference()
 {
     setStartOnLoginEnabled(startOnLoginEnabled());
+}
+
+QString AppSettings::passwordManagerType()
+{
+    const QString type = QSettings().value(PasswordManagerTypeKey, "bitwarden").toString().trimmed().toLower();
+    return type == QStringLiteral("protonpass") ? QStringLiteral("protonpass") : QStringLiteral("bitwarden");
+}
+
+void AppSettings::setPasswordManagerType(const QString& type)
+{
+    const QString normalized = type.trimmed().toLower();
+    QSettings().setValue(PasswordManagerTypeKey,
+        normalized == QStringLiteral("protonpass") ? QStringLiteral("protonpass") : QStringLiteral("bitwarden"));
 }
 
 QString AppSettings::bwProgramOverride()
@@ -354,6 +436,16 @@ QString AppSettings::bwProgramOverride()
 void AppSettings::setBwProgramOverride(const QString& path)
 {
     QSettings().setValue(BwProgramOverrideKey, path.trimmed());
+}
+
+QString AppSettings::protonPassProgramOverride()
+{
+    return QSettings().value(ProtonPassProgramOverrideKey).toString().trimmed();
+}
+
+void AppSettings::setProtonPassProgramOverride(const QString& path)
+{
+    QSettings().setValue(ProtonPassProgramOverrideKey, path.trimmed());
 }
 
 QString AppSettings::bitwardenServerMode()

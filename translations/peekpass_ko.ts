@@ -32,7 +32,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>System tray is not available. PeekWarden will keep running without a tray icon.</source>
+        <source>System tray is not available. peekpass will keep running without a tray icon.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -486,7 +486,7 @@ Install Bitwarden CLI or set bw.exe location in Settings.</source>
 <context>
     <name>SettingsDialog</name>
     <message>
-        <source>PeekWarden Settings</source>
+        <source>peekpass Settings</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -646,7 +646,7 @@ Install Bitwarden CLI or set bw.exe location in Settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Leave bw.exe empty to use bw.exe beside PeekWarden first, then bw from PATH. Session storage does not store the master password.</source>
+        <source>Leave bw.exe empty to use bw.exe beside peekpass first, then bw from PATH. Session storage does not store the master password.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
