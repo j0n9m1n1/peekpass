@@ -1,6 +1,8 @@
 # peekpass
 
 [![Build](https://github.com/j0n9m1n1/peekpass/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/j0n9m1n1/peekpass/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/j0n9m1n1/peekpass?display_name=tag)](https://github.com/j0n9m1n1/peekpass/releases/latest)
+[![License](https://img.shields.io/github/license/j0n9m1n1/peekpass)](LICENSE)
 
 ## References and Acknowledgements
 
@@ -17,13 +19,20 @@ items. It is inspired by 1Password Quick Access and delegates vault access to
 the selected password-manager CLI instead of implementing vault encryption or
 service APIs directly.
 
-This project is early Windows-first software.
+peekpass supports two password-manager backends:
+
+- Bitwarden-compatible vaults, including Bitwarden US, Bitwarden EU, and
+  self-hosted Vaultwarden servers through the Bitwarden CLI (`bw`).
+- Proton Pass through the Proton Pass CLI (`pass-cli`).
+
+This project is still early, Windows-first software.
 
 ## Features
 
 - Global quick-access hotkey on Windows.
 - Frameless always-on-top search window.
 - Selectable Bitwarden or Proton Pass backend.
+- First-run login screen that adapts to the selected password manager.
 - Bitwarden CLI login and unlock flow.
 - Proton Pass CLI (`pass-cli`) login flow, including optional TOTP and extra
   password input.
@@ -31,6 +40,7 @@ This project is early Windows-first software.
 - In-memory search over item names, usernames, URIs, notes, and non-sensitive
   provider fields.
 - Fast keyboard actions for copying username, password, TOTP, and opening details.
+- Independent, draggable item-details windows that leave quick access open.
 - Provider-aware item details for Bitwarden and Proton Pass, including logins,
   secure notes, cards, identities, SSH keys, Wi-Fi, aliases, custom sections,
   clickable websites, and provider metadata where available.
@@ -41,6 +51,7 @@ This project is early Windows-first software.
 - Configurable hotkey, shortcut preset, quick window size, position, opacity, corner style, theme, font, language, result fields, result count, auto-sync interval, and focus-loss behavior.
 - Optional Windows Credential Manager session storage for Bitwarden.
 - Optional Windows startup registration without administrator rights.
+- English and Korean UI with Qt Linguist translation files for adding more languages.
 
 ## Screenshots
 
@@ -52,28 +63,65 @@ This project is early Windows-first software.
 | --- | --- | --- |
 | <img src="result.png" alt="Search results" width="320"> | <img src="detail.png" alt="Item details" width="320"> | <img src="setting.png" alt="Settings dialog" width="320"> |
 
-## Requirements
+## Install and Run
 
 - Windows 10/11
-- Qt 6.11 or a compatible Qt 6 version
-- CMake 3.21+
-- C++17 compiler
 - One supported password-manager CLI:
   - Bitwarden CLI (`bw`)
   - Proton Pass CLI (`pass-cli`)
 
-Choose the password manager in **Settings > General > Password manager**.
+1. Download the latest `peekpass-<version>-win64.zip` from the
+   [latest release](https://github.com/j0n9m1n1/peekpass/releases/latest).
+2. Extract the complete archive. Keep `peekpass.exe`, the Qt DLLs, and the
+   deployment subdirectories together.
+3. Install at least one supported password-manager CLI.
+4. Run `peekpass.exe`. A tray notification confirms that the app is running.
+5. If no usable session exists, choose Bitwarden or Proton Pass in the login
+   window and enter the fields shown for that provider.
+6. Press `Ctrl+Shift+Space` to open quick access.
+
+The password manager can later be changed in
+**Settings > General > Password manager**.
 peekpass first looks for each CLI next to the application executable. Bitwarden
 then falls back to `bw` on `PATH`. Proton Pass additionally checks its standard
 Windows install location, `%LOCALAPPDATA%\Programs\ProtonPass\pass-cli.exe`,
 before falling back to `pass-cli` on `PATH`. An explicit CLI location can also
 be set in the corresponding settings tab.
 
-Bitwarden CLI download and setup:
-https://bitwarden.com/help/cli/
+- [Bitwarden CLI download and setup](https://bitwarden.com/help/cli/)
+- [Proton Pass CLI installation](https://protonpass.github.io/pass-cli/get-started/installation/)
 
-Proton Pass CLI installation:
-https://protonpass.github.io/pass-cli/get-started/installation/
+## Provider Behavior
+
+| Behavior | Bitwarden / Vaultwarden | Proton Pass |
+| --- | --- | --- |
+| CLI | `bw` | `pass-cli` |
+| Server selection | Bitwarden US, Bitwarden EU, or a custom URL | Managed by Proton Pass |
+| Login inputs | Email, master password, optional 2FA method/code | Email, password, optional TOTP and extra password |
+| Locked session | Unlocks with `bw unlock --raw` | Log in again; dedicated lock-code unlock is not implemented |
+| Tray lock action | Runs `bw lock` | Runs `pass-cli logout` |
+| Session ownership | Optional session key storage in Windows Credential Manager | Owned by Proton Pass CLI |
+| Sync | Runs Bitwarden sync and reloads items | Reloads the current item list; Proton Pass CLI has no separate sync command |
+
+## How It Works
+
+```mermaid
+flowchart LR
+    A["Start peekpass"] --> B["Register tray and global hotkey"]
+    B --> C["Check selected CLI and session"]
+    C -->|"Signed out or locked"| D["Show provider-aware login or unlock UI"]
+    C -->|"Ready"| E["Load vault items into memory"]
+    D --> E
+    E --> F["Filter cached items while the user types"]
+    F --> G["Copy a field, TOTP, or open item details"]
+    G --> H["Clear sensitive clipboard content after 30 seconds"]
+```
+
+Vault encryption, account storage, and remote service access remain the
+responsibility of the selected CLI. peekpass starts vault preparation when the
+application starts so opening quick access normally does not have to wait for
+the initial item load. If authentication is required, the login or unlock UI is
+shown immediately instead.
 
 ## Project Structure
 
@@ -97,25 +145,32 @@ https://protonpass.github.io/pass-cli/get-started/installation/
 
 ## Build
 
-Install Qt first. Install the selected password-manager CLI before running the
-application.
+Building from source requires CMake 3.21+, a C++17 compiler, and Qt 6.11 or a
+compatible Qt 6 release with Widgets, Concurrent, Network, LinguistTools, and a
+matching compiler toolchain. Install the selected password-manager CLI before
+running the application.
 
 ```powershell
-cmake -S . -B build -DCMAKE_PREFIX_PATH="C:\Qt\6.11.1\mingw_64"
-cmake --build build --config Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:\Qt\6.11.1\mingw_64"
+cmake --build build --parallel
 ```
 
 If Qt is already discoverable by CMake, the `CMAKE_PREFIX_PATH` argument is not
-needed.
+needed. Multi-config generators can omit `CMAKE_BUILD_TYPE` and use
+`cmake --build build --config Release` instead.
 
 ## GitHub Release Build
 
 GitHub Actions builds a Windows release package when a version tag is pushed:
 
 ```powershell
-git tag v0.1.1
-git push origin v0.1.1
+git tag -a vX.Y.Z -m "peekpass vX.Y.Z"
+git push origin main
+git push origin vX.Y.Z
 ```
+
+peekpass follows semantic versioning (`MAJOR.MINOR.PATCH`). Keep the version in
+`project(peekpass VERSION ...)` in `CMakeLists.txt` aligned with the Git tag.
 
 The workflow creates a `peekpass-<tag>-win64.zip` package with `peekpass.exe`,
 Qt runtime DLLs from `windeployqt`, translations, `README.md`, and `LICENSE`, then
@@ -124,6 +179,9 @@ tab. To rebuild an existing tag after fixing the release workflow, run the
 workflow from `main` and enter that tag in the `release_tag` input. Leave
 `release_tag` empty for a build-only manual run. Use a new version tag for each
 source release.
+
+The latest published package is available on the
+[Releases page](https://github.com/j0n9m1n1/peekpass/releases).
 
 ## Usage
 
@@ -157,6 +215,12 @@ Ctrl+/          Open settings
 Esc             Close
 ```
 
+The tray menu provides quick access, lock/sign-out, settings, and quit actions.
+To return to a completely fresh first-run state, use
+**Settings > Behavior > Reset peekpass**. This signs out installed provider
+CLIs, removes local settings and the stored Bitwarden session, unregisters
+Windows startup, and closes the app.
+
 ## Security Notes
 
 - Password-manager account passwords are never stored by peekpass.
@@ -184,6 +248,19 @@ Esc             Close
   item schemas are not forced into the same display model.
 - Until a dedicated Proton Pass CLI lock-code UI exists, the tray action for
   Proton Pass safely runs `pass-cli logout` instead of `session lock`.
+- Web favicon loading is optional. When enabled, peekpass requests
+  `/favicon.ico` directly from websites stored in matching vault items, which
+  exposes those hostnames to the corresponding web servers.
+
+## Localization
+
+English and Korean are currently supported. User-visible text is routed through
+the Qt translation layer, and the selected language can also apply a suitable
+default quick-access font and size.
+
+To contribute another language, add `translations/peekpass_<locale>.ts`, list it
+in `PEEKPASS_TRANSLATIONS` in `CMakeLists.txt`, and build it with Qt Linguist.
+See [translations/README.md](translations/README.md) for the exact steps.
 
 ## Current Limitations
 
