@@ -29,7 +29,6 @@ int main(int argc, char* argv[])
     QApplication::setOrganizationName("peekpass");
     QApplication::setQuitOnLastWindowClosed(false);
     AppSettings::migratePreviousSettings();
-    AppSettings::applyStartupPreference();
 
     QTranslator appTranslator;
     QTranslator qtTranslator;
@@ -38,6 +37,17 @@ int main(int argc, char* argv[])
         I18n::installQtTranslator(app, qtTranslator, AppSettings::language());
     };
     reloadTranslator();
+
+    QString startupError;
+    if (!AppSettings::applyStartupPreference(&startupError)) {
+        QMessageBox::warning(
+            nullptr,
+            uiText("Windows 자동 시작", "Windows startup"),
+            QString("%1\n\n%2")
+                .arg(uiText("자동 시작 등록을 확인하지 못했습니다. 설정에서 자동 시작을 다시 지정하세요.",
+                         "Could not validate the startup registration. Configure startup again in Settings."),
+                    startupError));
+    }
 
     QuickWindow window;
 
@@ -149,8 +159,6 @@ int main(int argc, char* argv[])
                     hotkey.lastError(),
                     uiText("1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다.",
                            "Another app, such as 1Password, may already be using this shortcut.")));
-        trayIcon.hide();
-        return 1;
     }
 #else
     window.showQuick();

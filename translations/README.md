@@ -12,3 +12,9 @@ To add a language:
 `src/TranslationCatalog.cpp` keeps current user-visible strings discoverable for Qt
 translation tooling, including strings selected dynamically by password-manager
 backends.
+
+Korean is currently also supplied as an inline fallback to `I18n::translate`, so
+the app remains bilingual while `peekpass_ko.ts` is still an unfinished Linguist
+catalog. An empty generated `peekpass_ko.qm` is therefore expected until those
+catalog entries are translated and marked finished. New languages must provide
+completed `.ts` translations because they do not have an inline fallback.

@@ -83,8 +83,8 @@ public:
     static void setCredentialSessionStorageEnabled(bool enabled);
 
     static bool startOnLoginEnabled();
-    static void setStartOnLoginEnabled(bool enabled);
-    static void applyStartupPreference();
+    static bool setStartOnLoginEnabled(bool enabled, QString* errorMessage = nullptr);
+    static bool applyStartupPreference(QString* errorMessage = nullptr);
 
     static QString passwordManagerType();
     static void setPasswordManagerType(const QString& type);

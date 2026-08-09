@@ -255,6 +255,9 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
     m_startOnLoginCheck = new QCheckBox(uiText("Start with Windows", "Windows 자동 시작"), this);
     m_startOnLoginCheck->setChecked(AppSettings::startOnLoginEnabled());
+    m_startOnLoginCheck->setToolTip(
+        uiText("Registers the deployed peekpass executable for the current Windows user. Bare development builds without Qt runtime files cannot be registered.",
+               "배포된 peekpass 실행 파일을 현재 Windows 사용자에 등록합니다. Qt 런타임 파일이 없는 개발 빌드는 등록할 수 없습니다."));
 
     m_logoutButton = new QPushButton(uiText("Log out of Bitwarden...", "Bitwarden 로그아웃..."), this);
     m_logoutButton->setObjectName("dangerButton");
@@ -657,6 +660,22 @@ void SettingsDialog::saveAndAccept()
         return;
     }
 
+    const bool startOnLogin = m_startOnLoginCheck->isChecked();
+    if (startOnLogin != AppSettings::startOnLoginEnabled()) {
+        QString startupError;
+        if (!AppSettings::setStartOnLoginEnabled(startOnLogin, &startupError)) {
+            QMessageBox::warning(
+                this,
+                uiText("Windows startup", "Windows 자동 시작"),
+                QString("%1\n\n%2")
+                    .arg(uiText("Could not update Windows startup registration.",
+                             "Windows 자동 시작 등록을 변경하지 못했습니다."),
+                        startupError));
+            m_startOnLoginCheck->setChecked(AppSettings::startOnLoginEnabled());
+            return;
+        }
+    }
+
     AppSettings::setLanguage(m_languageCombo->currentData().toString());
     AppSettings::setTheme(m_themeCombo->currentData().toString());
     AppSettings::setPasswordManagerType(m_passwordManagerCombo->currentData().toString());
@@ -683,7 +702,6 @@ void SettingsDialog::saveAndAccept()
     AppSettings::setAutoSyncIntervalMinutes(m_autoSyncIntervalSpin->value());
     AppSettings::setCloseOnFocusLoss(m_closeOnFocusLossCheck->isChecked());
     AppSettings::setCredentialSessionStorageEnabled(m_credentialSessionStorageCheck->isChecked());
-    AppSettings::setStartOnLoginEnabled(m_startOnLoginCheck->isChecked());
     AppSettings::setBwProgramOverride(m_bwPathEdit->text());
     AppSettings::setProtonPassProgramOverride(m_protonPassPathEdit->text());
     accept();

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(peekpass VERSION 0.3.0 LANGUAGES CXX)
+project(peekpass VERSION 0.3.1 LANGUAGES CXX)
+
+include(CTest)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,6 +60,37 @@ endif()
 
 if(MSVC)
     target_compile_options(peekpass PRIVATE /utf-8)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(peekpass_fake_pass_cli
+        tests/FakePassCli.cpp
+    )
+    target_link_libraries(peekpass_fake_pass_cli PRIVATE Qt6::Core)
+
+    add_executable(peekpass_proton_tests
+        tests/ProtonPassClientTests.cpp
+        src/AppSettings.cpp
+        src/AppSettings.h
+        src/I18n.cpp
+        src/I18n.h
+        src/ProtonPassClient.cpp
+        src/ProtonPassClient.h
+        src/VaultTypes.h
+    )
+    target_include_directories(peekpass_proton_tests PRIVATE src)
+    target_link_libraries(peekpass_proton_tests PRIVATE Qt6::Widgets)
+
+    if(MSVC)
+        target_compile_options(peekpass_fake_pass_cli PRIVATE /utf-8)
+        target_compile_options(peekpass_proton_tests PRIVATE /utf-8)
+    endif()
+
+    add_test(
+        NAME proton_pass_client
+        COMMAND peekpass_proton_tests "$<TARGET_FILE:peekpass_fake_pass_cli>"
+    )
+    set_tests_properties(proton_pass_client PROPERTIES TIMEOUT 30)
 endif()
 
 install(TARGETS peekpass

@@ -14,6 +14,8 @@ namespace
     QT_TRANSLATE_NOOP("Main", "Hotkey"),
     QT_TRANSLATE_NOOP("Main", "Failed to register the configured hotkey."),
     QT_TRANSLATE_NOOP("Main", "Another app, such as 1Password, may already be using this shortcut."),
+    QT_TRANSLATE_NOOP("Main", "Windows startup"),
+    QT_TRANSLATE_NOOP("Main", "Could not validate the startup registration. Configure startup again in Settings."),
     QT_TRANSLATE_NOOP("Main", "peekpass is running. Press %1 to open quick access.")
 };
 
@@ -190,6 +192,9 @@ namespace
     QT_TRANSLATE_NOOP("SettingsDialog", "Store session in Windows Credential Manager"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Start with Windows"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Start on Windows login"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Registers the deployed peekpass executable for the current Windows user. Bare development builds without Qt runtime files cannot be registered."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Windows startup"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Could not update Windows startup registration."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Log out of Bitwarden..."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Run bw logout and remove the stored peekpass session."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Auto: app folder bw.exe, then PATH bw"),

@@ -2,8 +2,10 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QSettings>
+#include <QStringList>
 
 namespace
 {
@@ -45,6 +47,7 @@ const char* StartOnLoginKey = "system/startOnLogin";
 const char* StartOnLoginName = "peekpass";
 const char* PreviousStartOnLoginName = "PeekPass";
 const char* OlderStartOnLoginName = "PeekWarden";
+const char* WindowsRunKey = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const char* PreviousSettingsMigratedKey = "system/migratedFromPreviousName";
 const char* PasswordManagerTypeKey = "passwordManager/type";
 const char* BwProgramOverrideKey = "bitwarden/bwProgram";
@@ -63,15 +66,108 @@ QString quotedApplicationPath()
     return QString("\"%1\"").arg(QDir::toNativeSeparators(QCoreApplication::applicationFilePath()));
 }
 
-void removeStartupEntries()
+QString startupExecutableFromCommand(QString command)
+{
+    command = command.trimmed();
+    if (command.startsWith(QLatin1Char('"'))) {
+        const int closingQuote = command.indexOf(QLatin1Char('"'), 1);
+        if (closingQuote > 1)
+            return QDir::fromNativeSeparators(command.mid(1, closingQuote - 1));
+    }
+
+    const int firstSpace = command.indexOf(QLatin1Char(' '));
+    return QDir::fromNativeSeparators(firstSpace > 0 ? command.left(firstSpace) : command);
+}
+
+QString startupRuntimeError(const QString& executablePath)
 {
 #ifdef Q_OS_WIN
-    QSettings runKey(
-        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        QSettings::NativeFormat);
+    const QFileInfo executable(executablePath);
+    if (!executable.exists() || !executable.isFile())
+        return QString("The startup executable does not exist: %1").arg(QDir::toNativeSeparators(executablePath));
+
+    const QDir directory = executable.dir();
+    QStringList missingFiles;
+    const auto requireOneOf = [&directory, &missingFiles](const QString& displayName, const QStringList& candidates) {
+        for (const QString& candidate : candidates) {
+            if (QFileInfo::exists(directory.filePath(candidate)))
+                return;
+        }
+        missingFiles.push_back(displayName);
+    };
+
+    requireOneOf(QStringLiteral("Qt6Core.dll"), {QStringLiteral("Qt6Core.dll"), QStringLiteral("Qt6Cored.dll")});
+    requireOneOf(QStringLiteral("Qt6Gui.dll"), {QStringLiteral("Qt6Gui.dll"), QStringLiteral("Qt6Guid.dll")});
+    requireOneOf(QStringLiteral("Qt6Network.dll"), {QStringLiteral("Qt6Network.dll"), QStringLiteral("Qt6Networkd.dll")});
+    requireOneOf(QStringLiteral("Qt6Widgets.dll"), {QStringLiteral("Qt6Widgets.dll"), QStringLiteral("Qt6Widgetsd.dll")});
+    requireOneOf(QStringLiteral("platforms\\qwindows.dll"),
+        {QStringLiteral("platforms/qwindows.dll"), QStringLiteral("platforms/qwindowsd.dll")});
+
+#ifdef __MINGW32__
+    requireOneOf(QStringLiteral("libgcc_s_seh-1.dll"), {QStringLiteral("libgcc_s_seh-1.dll")});
+    requireOneOf(QStringLiteral("libstdc++-6.dll"), {QStringLiteral("libstdc++-6.dll")});
+    requireOneOf(QStringLiteral("libwinpthread-1.dll"), {QStringLiteral("libwinpthread-1.dll")});
+#endif
+
+    if (!missingFiles.isEmpty()) {
+        return QString("Required runtime files are missing beside the application: %1. Use the packaged release created with windeployqt.")
+            .arg(missingFiles.join(QStringLiteral(", ")));
+    }
+#else
+    Q_UNUSED(executablePath)
+#endif
+
+    return {};
+}
+
+void removeStartupEntryValues(QSettings& runKey)
+{
     runKey.remove(StartOnLoginName);
     runKey.remove(PreviousStartOnLoginName);
     runKey.remove(OlderStartOnLoginName);
+}
+
+bool hasStartupEntry(const QSettings& runKey)
+{
+    return runKey.contains(StartOnLoginName)
+        || runKey.contains(PreviousStartOnLoginName)
+        || runKey.contains(OlderStartOnLoginName);
+}
+
+QString startupEntryValue(const QSettings& runKey)
+{
+    for (const char* name : {StartOnLoginName, PreviousStartOnLoginName, OlderStartOnLoginName}) {
+        if (runKey.contains(name))
+            return runKey.value(name).toString();
+    }
+    return {};
+}
+
+QString settingsError(QSettings::Status status)
+{
+    switch (status) {
+    case QSettings::AccessError:
+        return QStringLiteral("Windows denied access to the current user's startup registry key.");
+    case QSettings::FormatError:
+        return QStringLiteral("Windows returned an invalid startup registry value.");
+    case QSettings::NoError:
+        break;
+    }
+    return QStringLiteral("The Windows startup registry entry could not be updated.");
+}
+
+void setError(QString* target, const QString& message)
+{
+    if (target)
+        *target = message;
+}
+
+void removeStartupEntries()
+{
+#ifdef Q_OS_WIN
+    QSettings runKey(QString::fromLatin1(WindowsRunKey), QSettings::NativeFormat);
+    removeStartupEntryValues(runKey);
+    runKey.sync();
 #endif
 }
 
@@ -390,29 +486,94 @@ void AppSettings::setCredentialSessionStorageEnabled(bool enabled)
 
 bool AppSettings::startOnLoginEnabled()
 {
-    return QSettings().value(StartOnLoginKey, true).toBool();
+#ifdef Q_OS_WIN
+    QSettings runKey(QString::fromLatin1(WindowsRunKey), QSettings::NativeFormat);
+    return hasStartupEntry(runKey);
+#else
+    return QSettings().value(StartOnLoginKey, false).toBool();
+#endif
 }
 
-void AppSettings::setStartOnLoginEnabled(bool enabled)
+bool AppSettings::setStartOnLoginEnabled(bool enabled, QString* errorMessage)
 {
-    QSettings().setValue(StartOnLoginKey, enabled);
 #ifdef Q_OS_WIN
-    QSettings runKey(
-        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-        QSettings::NativeFormat);
+    if (enabled) {
+        const QString runtimeError = startupRuntimeError(QCoreApplication::applicationFilePath());
+        if (!runtimeError.isEmpty()) {
+            setError(errorMessage, runtimeError);
+            return false;
+        }
+    }
+
+    QSettings runKey(QString::fromLatin1(WindowsRunKey), QSettings::NativeFormat);
     if (enabled) {
         runKey.setValue(StartOnLoginName, quotedApplicationPath());
         runKey.remove(PreviousStartOnLoginName);
         runKey.remove(OlderStartOnLoginName);
     } else {
-        removeStartupEntries();
+        removeStartupEntryValues(runKey);
+    }
+    runKey.sync();
+
+    if (runKey.status() != QSettings::NoError) {
+        setError(errorMessage, settingsError(runKey.status()));
+        return false;
+    }
+
+    const bool verified = enabled
+        ? runKey.value(StartOnLoginName).toString() == quotedApplicationPath()
+        : !hasStartupEntry(runKey);
+    if (!verified) {
+        setError(errorMessage, QStringLiteral("Windows did not retain the requested startup registry entry."));
+        return false;
     }
 #endif
+
+    QSettings settings;
+    settings.setValue(StartOnLoginKey, enabled);
+    settings.sync();
+    setError(errorMessage, {});
+    return true;
 }
 
-void AppSettings::applyStartupPreference()
+bool AppSettings::applyStartupPreference(QString* errorMessage)
 {
-    setStartOnLoginEnabled(startOnLoginEnabled());
+#ifdef Q_OS_WIN
+    QSettings runKey(QString::fromLatin1(WindowsRunKey), QSettings::NativeFormat);
+    if (!hasStartupEntry(runKey)) {
+        setError(errorMessage, {});
+        return true;
+    }
+
+    const QString existingCommand = startupEntryValue(runKey);
+    const QString existingExecutable = startupExecutableFromCommand(existingCommand);
+    const QString existingRuntimeError = startupRuntimeError(existingExecutable);
+    if (existingRuntimeError.isEmpty()) {
+        runKey.setValue(StartOnLoginName, existingCommand);
+        runKey.remove(PreviousStartOnLoginName);
+        runKey.remove(OlderStartOnLoginName);
+        runKey.sync();
+        if (runKey.status() == QSettings::NoError
+            && runKey.value(StartOnLoginName).toString() == existingCommand) {
+            setError(errorMessage, {});
+            return true;
+        }
+
+        setError(errorMessage, settingsError(runKey.status()));
+        return false;
+    }
+
+    const QString currentRuntimeError = startupRuntimeError(QCoreApplication::applicationFilePath());
+    if (currentRuntimeError.isEmpty())
+        return setStartOnLoginEnabled(true, errorMessage);
+
+    setError(errorMessage,
+        QString("The registered startup entry is not runnable. %1").arg(existingRuntimeError));
+    return false;
+#else
+    setError(errorMessage, {});
+    return true;
+#endif
 }
 
 QString AppSettings::passwordManagerType()

@@ -1,47 +1,60 @@
 # Project: peekpass
 
-This is a personal cross-platform Bitwarden Quick Access app.
+peekpass is a personal, cross-platform password-manager quick-access app inspired by 1Password Quick Access.
 
-## Goal
+## Product Direction
 
-Build a small desktop app similar to 1Password Quick Access.
-
-The app should:
 - Use Qt 6 Widgets, not QML.
-- Use C++17.
-- Use Bitwarden CLI (`bw`) as the backend.
-- Not implement Bitwarden encryption/API directly.
-- Work first on Windows.
-- Later be portable to macOS and Linux.
+- Use C++17 and CMake.
+- Keep password-manager access behind installed command-line clients.
+- Do not implement provider encryption or service APIs directly.
+- Target Windows first, with macOS and Linux portability later.
+- Keep the implementation small, security-conscious, and MVP-oriented.
 
-## MVP Features
+## Supported Backends
 
-- Global hotkey: Ctrl+Shift+Space on Windows.
-- Show a small frameless always-on-top search window.
-- Unlock Bitwarden using `bw unlock --raw` if there is no session.
-- Search vault items using `bw list items --search <keyword>`.
-- Show item name and username in a list.
-- Enter copies password.
-- Ctrl+Enter copies username.
-- Alt+T copies TOTP.
-- Clear password clipboard after 30 seconds.
+- Bitwarden, Bitwarden EU, and Vaultwarden through the Bitwarden CLI (`bw`).
+- Proton Pass through the Proton Pass CLI (`pass-cli`).
 
-## Technical Requirements
+Provider-specific behavior belongs in `BwClient` or `ProtonPassClient`. UI code should use the common `PasswordManager` interface and backend-neutral types in `VaultTypes.h` whenever practical.
 
-- Use CMake.
-- Use Qt 6.11 or compatible Qt 6 version.
-- Use QProcess to call `bw`.
-- First try to find `bw.exe` in the application directory.
-- If not found, fall back to `bw` from PATH.
-- Do not store the master password.
-- Do not store the Bitwarden session in plain text for now.
-- Keep code simple and MVP-oriented.
+## Current Features
 
-## Later Improvements
+- Global quick-access hotkey on Windows.
+- Frameless, always-on-top search window.
+- Provider-aware login and session handling.
+- In-memory vault cache and search.
+- Password, username, and TOTP copy actions.
+- Sensitive clipboard clearing after 30 seconds.
+- Item details, tray menu, settings, startup registration, and English/Korean UI.
 
-- Cache all vault items in memory after unlock.
-- Add fuzzy search.
-- Add tray icon.
-- Add settings UI.
-- Add macOS/Linux global hotkey support.
-- Use OS credential storage for session handling.
+## Security Requirements
+
+- Never store account or master passwords.
+- Never pass passwords directly in process arguments.
+- Keep sensitive clipboard entries out of Windows clipboard history and cloud sync.
+- Clear cached vault data when locking, signing out, or exiting.
+- Keep Bitwarden session persistence in Windows Credential Manager when enabled.
+- Let Proton Pass CLI own its session; do not copy or persist it in peekpass.
+- Invoke provider CLIs with `QProcess`; do not link, bundle, or derive code from them.
+
+## CLI Discovery
+
+- Prefer an explicit path from settings.
+- Otherwise check beside the application executable first.
+- Bitwarden then falls back to `bw` on `PATH`.
+- Proton Pass additionally checks its standard Windows installation directory before falling back to `pass-cli` on `PATH`.
+
+## Verification
+
+- Build with a Qt 6.11-compatible Qt 6 release and a matching compiler toolchain.
+- Run `ctest --test-dir <build-dir> --output-on-failure` after building.
+- Keep the fake Proton Pass CLI test aligned with the official command and JSON contracts.
+- Use `docs/PROTON_PASS_VALIDATION.md` for live-account smoke testing; never add real vault data or credentials to fixtures.
+
+## Remaining Platform Work
+
+- macOS/Linux global hotkeys.
+- Multi-account support.
+- Dedicated Proton Pass lock-code unlock flow.
+- OS credential/session handling appropriate to non-Windows platforms.

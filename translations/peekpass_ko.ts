@@ -47,6 +47,14 @@
         <source>Another app, such as 1Password, may already be using this shortcut.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Windows startup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not validate the startup registration. Configure startup again in Settings.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>WinHotkey</name>
@@ -707,6 +715,18 @@ Ctrl+Shift+O: Details
 Ctrl+R: Sync
 Ctrl+/: Settings
 Esc: Close</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Windows startup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not update Windows startup registration.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Registers the deployed peekpass executable for the current Windows user. Bare development builds without Qt runtime files cannot be registered.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

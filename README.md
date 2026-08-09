@@ -142,6 +142,10 @@ shown immediately instead.
 - `src/I18n.*` and `src/TranslationCatalog.cpp` - Runtime text lookup and
   built-in translations.
 - `translations/` - Qt translation source files and translation notes.
+- `tests/` - A fake Proton Pass CLI and client integration test using
+  provider-compatible command and JSON fixtures.
+- `docs/PROTON_PASS_VALIDATION.md` - Credential-safe live-account smoke-test
+  checklist.
 
 ## Build
 
@@ -153,11 +157,19 @@ running the application.
 ```powershell
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:\Qt\6.11.1\mingw_64"
 cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ```
 
 If Qt is already discoverable by CMake, the `CMAKE_PREFIX_PATH` argument is not
 needed. Multi-config generators can omit `CMAKE_BUILD_TYPE` and use
 `cmake --build build --config Release` instead.
+
+Tests are enabled by default. Release-only builds can configure with
+`-DBUILD_TESTING=OFF`. The automated Proton Pass test does not contact Proton or
+read a real vault; it runs `ProtonPassClient` against a fake CLI whose commands
+and JSON fixtures follow the official `pass-cli` contract. Use
+[`docs/PROTON_PASS_VALIDATION.md`](docs/PROTON_PASS_VALIDATION.md) for the final
+live-account smoke test.
 
 ## GitHub Release Build
 
@@ -216,6 +228,10 @@ Esc             Close
 ```
 
 The tray menu provides quick access, lock/sign-out, settings, and quit actions.
+On Windows, **Start with Windows** reflects the actual per-user `Run` registry
+entry. peekpass verifies the write immediately and only enables it when the
+executable is deployed with its required Qt platform and compiler runtime files;
+a bare development-build executable is intentionally rejected.
 To return to a completely fresh first-run state, use
 **Settings > Behavior > Reset peekpass**. This signs out installed provider
 CLIs, removes local settings and the stored Bitwarden session, unregisters
@@ -271,8 +287,10 @@ See [translations/README.md](translations/README.md) for the exact steps.
 - Vault items are cached in memory for fast searching.
 - YubiKey, passkey, and other hardware security key authentication flows have
   not been tested yet.
-- Proton Pass CLI compatibility has not yet been tested against a live user
-  vault in this project.
+- Proton Pass command construction and JSON parsing are covered by a fake-CLI
+  integration test, but compatibility has not yet been verified against a live
+  user vault. Track that verification with
+  [`docs/PROTON_PASS_VALIDATION.md`](docs/PROTON_PASS_VALIDATION.md).
 
 ## Status
 
