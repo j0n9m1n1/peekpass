@@ -45,7 +45,6 @@ const char* CloseOnFocusLossKey = "window/closeOnFocusLoss";
 const char* CredentialSessionStorageEnabledKey = "security/credentialSessionStorageEnabled";
 const char* StartOnLoginKey = "system/startOnLogin";
 const char* StartOnLoginName = "peekpass";
-const char* PreviousStartOnLoginName = "PeekPass";
 const char* OlderStartOnLoginName = "PeekWarden";
 const char* WindowsRunKey = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 const char* PreviousSettingsMigratedKey = "system/migratedFromPreviousName";
@@ -123,20 +122,20 @@ QString startupRuntimeError(const QString& executablePath)
 void removeStartupEntryValues(QSettings& runKey)
 {
     runKey.remove(StartOnLoginName);
-    runKey.remove(PreviousStartOnLoginName);
     runKey.remove(OlderStartOnLoginName);
 }
 
 bool hasStartupEntry(const QSettings& runKey)
 {
     return runKey.contains(StartOnLoginName)
-        || runKey.contains(PreviousStartOnLoginName)
         || runKey.contains(OlderStartOnLoginName);
 }
 
 QString startupEntryValue(const QSettings& runKey)
 {
-    for (const char* name : {StartOnLoginName, PreviousStartOnLoginName, OlderStartOnLoginName}) {
+    // Windows registry value names are case-insensitive, so an existing
+    // "PeekPass" entry is already found through StartOnLoginName ("peekpass").
+    for (const char* name : {StartOnLoginName, OlderStartOnLoginName}) {
         if (runKey.contains(name))
             return runKey.value(name).toString();
     }
@@ -508,7 +507,6 @@ bool AppSettings::setStartOnLoginEnabled(bool enabled, QString* errorMessage)
     QSettings runKey(QString::fromLatin1(WindowsRunKey), QSettings::NativeFormat);
     if (enabled) {
         runKey.setValue(StartOnLoginName, quotedApplicationPath());
-        runKey.remove(PreviousStartOnLoginName);
         runKey.remove(OlderStartOnLoginName);
     } else {
         removeStartupEntryValues(runKey);
@@ -550,7 +548,6 @@ bool AppSettings::applyStartupPreference(QString* errorMessage)
     const QString existingRuntimeError = startupRuntimeError(existingExecutable);
     if (existingRuntimeError.isEmpty()) {
         runKey.setValue(StartOnLoginName, existingCommand);
-        runKey.remove(PreviousStartOnLoginName);
         runKey.remove(OlderStartOnLoginName);
         runKey.sync();
         if (runKey.status() == QSettings::NoError
