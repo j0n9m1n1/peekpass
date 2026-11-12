@@ -1,7 +1,9 @@
 #include <QCoreApplication>
+#include <QFile>
 #include <QProcessEnvironment>
 #include <QStringList>
 #include <QTextStream>
+#include <QThread>
 
 namespace
 {
@@ -25,6 +27,13 @@ int main(int argc, char* argv[])
     const QStringList arguments = app.arguments().mid(1);
     QTextStream output(stdout);
     const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    const QString tracePath = environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_TRACE"));
+    if (!tracePath.isEmpty()) {
+        QFile trace(tracePath);
+        if (!trace.open(QIODevice::WriteOnly | QIODevice::Append))
+            return fail(QStringLiteral("could not open fixture command trace"));
+        trace.write(arguments.join(QLatin1Char(' ')).toUtf8() + '\n');
+    }
 
     if (arguments == QStringList{QStringLiteral("--version")}) {
         output << "pass-cli 2.7.0-test" << Qt::endl;
@@ -32,6 +41,8 @@ int main(int argc, char* argv[])
     }
 
     if (arguments == QStringList{QStringLiteral("info"), QStringLiteral("--output"), QStringLiteral("json")}) {
+        if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("slow-info"))
+            QThread::msleep(1000);
         if (hasDirectCredential(environment)
             || environment.contains(QStringLiteral("PROTON_PASS_PASSWORD_FILE"))
             || environment.contains(QStringLiteral("PROTON_PASS_PERSONAL_ACCESS_TOKEN")))
@@ -74,6 +85,8 @@ int main(int argc, char* argv[])
         QStringLiteral("json")
     };
     if (arguments == itemListArguments) {
+        if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("slow-list"))
+            QThread::msleep(1000);
         if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("list-error"))
             return fail(QStringLiteral("vault request failed"));
         output << R"json(

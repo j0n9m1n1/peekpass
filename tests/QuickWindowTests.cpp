@@ -9,11 +9,13 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QFile>
 #include <QFontDatabase>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QSettings>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -77,11 +79,53 @@ public:
     static void run()
     {
         QuickWindow window;
+        window.m_sessionTimer.stop();
         seed(window);
         check(window.m_list->count() == 1, "Fixture search result was missing.");
+
+        QTemporaryDir traceDirectory;
+        check(traceDirectory.isValid(), "Could not create an isolated CLI trace directory.");
+        const QString tracePath = traceDirectory.filePath(QStringLiteral("commands.txt"));
+        qputenv("PEEKPASS_FAKE_PASS_TRACE", tracePath.toUtf8());
+        for (int reopen = 0; reopen < 3; ++reopen) {
+            window.preserveSearchState();
+            window.hide();
+            window.showQuick();
+            check(window.m_search->isEnabled() && window.m_list->isEnabled(),
+                "Cached reopening disabled search or results.");
+            check(window.m_list->isVisible() && window.m_list->count() == 1,
+                "Cached reopening did not immediately restore the search results.");
+            check(!window.m_busyBar->isVisible() && !window.m_prepareWatcher.isRunning(),
+                "Cached reopening started a foreground session check.");
+        }
+        check(!QFileInfo::exists(tracePath), "Cached reopening unexpectedly invoked the provider CLI.");
+        qunsetenv("PEEKPASS_FAKE_PASS_TRACE");
+
+        qputenv("PEEKPASS_FAKE_PASS_MODE", "slow-info");
+        window.prepareVault(false);
+        check(window.m_search->isEnabled() && window.m_list->isEnabled() && !window.m_busyBar->isVisible(),
+            "Background validation interrupted cached search.");
+        window.hide();
+        window.showQuick();
+        window.m_search->setText(QStringLiteral("fixture"));
+        check(window.m_list->count() == 1 && window.m_search->isEnabled() && !window.m_busyBar->isVisible(),
+            "Cached reopening waited for an in-flight background check.");
         window.copyPassword(window.m_list->item(0));
         check(until([] { return QApplication::clipboard()->text() == QStringLiteral("fixture-password"); }),
-            "Verified password copy failed.");
+            "Copy during background validation was dropped instead of using the verified result.");
+
+        seed(window);
+        qputenv("PEEKPASS_FAKE_PASS_MODE", "slow-list");
+        window.startItemLoad(true, true);
+        window.preserveSearchState();
+        window.hide();
+        window.showQuick();
+        check(window.m_search->isEnabled() && !window.m_busyBar->isVisible() && window.m_quietItemLoad,
+            "Reopening promoted a quiet refresh into a foreground load.");
+        check(window.m_list->isVisible() && window.m_list->count() == 1,
+            "Reopening during refresh hid cached search results.");
+        check(until([&] { return !window.m_itemsWatcher.isRunning(); }), "Background item refresh did not finish.");
+        QCoreApplication::processEvents();
 
         seed(window);
         QApplication::clipboard()->setText(QStringLiteral("sentinel"));
@@ -97,7 +141,8 @@ public:
         window.hide();
         qputenv("PEEKPASS_FAKE_PASS_MODE", "unauthenticated");
         window.showQuick();
-        check(until([&] { return !window.m_itemsReady; }), "Reopening reused a signed-out cache.");
+        window.prepareVault(false);
+        check(until([&] { return !window.m_itemsReady; }), "Background validation retained a signed-out cache.");
         check(window.m_authPanel->isVisible(), "Signed-out session did not show the connection screen.");
 
         seed(window);

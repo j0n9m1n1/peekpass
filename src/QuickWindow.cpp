@@ -1507,8 +1507,7 @@ void QuickWindow::clearVaultCache()
 
 void QuickWindow::verifyVaultAction(std::function<void()> action)
 {
-    if (m_resetting || m_authMode != AuthMode::None || m_prepareWatcher.isRunning()
-        || m_authWatcher.isRunning())
+    if (m_resetting || m_authMode != AuthMode::None || m_authWatcher.isRunning())
         return;
     m_pendingVaultAction = std::move(action);
     prepareVault(true);
@@ -1860,7 +1859,6 @@ void QuickWindow::showQuick()
     }
 
     const bool restoreSearch = shouldRestorePreservedSearch();
-    applySettings();
     hideAuthPanel();
     m_search->setVisible(true);
     m_footer->setVisible(AppSettings::showShortcutHints());
@@ -1876,6 +1874,16 @@ void QuickWindow::showQuick()
     show();
     raise();
     activateWindow();
+
+    if (m_itemsReady && m_passwordManager->hasSession()) {
+        setBusy(false);
+        m_list->setEnabled(true);
+        if (restoreSearch)
+            restorePreservedSearch();
+        else
+            m_search->setFocus();
+        return;
+    }
 
     if (m_itemsWatcher.isRunning()) {
         m_quietItemLoad = false;
@@ -2697,7 +2705,8 @@ void QuickWindow::prepareVault(bool interactive)
 
     m_backgroundSessionCheck = !interactive && m_itemsReady;
     m_preloadingVault = !interactive;
-    m_list->setEnabled(false);
+    if (!m_backgroundSessionCheck)
+        m_list->setEnabled(false);
     if (interactive) {
         setBusy(true, uiText("Bitwarden 준비 중...", "Preparing Bitwarden..."));
         moveToConfiguredPosition();

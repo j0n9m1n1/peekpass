@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(peekpass VERSION 0.3.3 LANGUAGES CXX)
+project(peekpass VERSION 0.3.4 LANGUAGES CXX)
 
 include(CTest)
 
