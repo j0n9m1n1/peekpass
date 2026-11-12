@@ -1,5 +1,4 @@
 #include <QCoreApplication>
-#include <QFile>
 #include <QProcessEnvironment>
 #include <QStringList>
 #include <QTextStream>
@@ -10,15 +9,6 @@ int fail(const QString& message)
 {
     QTextStream(stderr) << message << Qt::endl;
     return 64;
-}
-
-QString readSecretFile(const QProcessEnvironment& environment, const QString& key)
-{
-    const QString path = environment.value(key);
-    QFile file(path);
-    if (path.isEmpty() || !file.open(QIODevice::ReadOnly))
-        return {};
-    return QString::fromUtf8(file.readAll());
 }
 
 bool hasDirectCredential(const QProcessEnvironment& environment)
@@ -37,28 +27,32 @@ int main(int argc, char* argv[])
     const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
 
     if (arguments == QStringList{QStringLiteral("--version")}) {
-        output << "pass-cli 1.0.0-test" << Qt::endl;
+        output << "pass-cli 2.7.0-test" << Qt::endl;
         return 0;
     }
 
     if (arguments == QStringList{QStringLiteral("info"), QStringLiteral("--output"), QStringLiteral("json")}) {
+        if (hasDirectCredential(environment)
+            || environment.contains(QStringLiteral("PROTON_PASS_PASSWORD_FILE"))
+            || environment.contains(QStringLiteral("PROTON_PASS_PERSONAL_ACCESS_TOKEN")))
+            return fail(QStringLiteral("inherited credentials leaked to pass-cli"));
         if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("unauthenticated")) {
             QTextStream(stderr) << "not logged in" << Qt::endl;
+            return 1;
+        }
+        if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("locked")) {
+            QTextStream(stderr) << "session is locked" << Qt::endl;
+            return 1;
+        }
+        if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("offline")) {
+            QTextStream(stderr) << "network unavailable" << Qt::endl;
             return 1;
         }
         output << R"json({"email":"tester@proton.me"})json" << Qt::endl;
         return 0;
     }
 
-    if (arguments == QStringList{QStringLiteral("login"), QStringLiteral("--interactive"), QStringLiteral("tester@proton.me")}) {
-        if (hasDirectCredential(environment))
-            return fail(QStringLiteral("direct credential environment variable leaked to pass-cli"));
-        if (readSecretFile(environment, QStringLiteral("PROTON_PASS_PASSWORD_FILE")) != QStringLiteral("fixture-master"))
-            return fail(QStringLiteral("password file was missing or incorrect"));
-        if (readSecretFile(environment, QStringLiteral("PROTON_PASS_TOTP_FILE")) != QStringLiteral("123456"))
-            return fail(QStringLiteral("TOTP file was missing or incorrect"));
-        if (readSecretFile(environment, QStringLiteral("PROTON_PASS_EXTRA_PASSWORD_FILE")) != QStringLiteral("fixture-extra"))
-            return fail(QStringLiteral("extra-password file was missing or incorrect"));
+    if (arguments == QStringList{QStringLiteral("login")}) {
         return 0;
     }
 
@@ -80,6 +74,8 @@ int main(int argc, char* argv[])
         QStringLiteral("json")
     };
     if (arguments == itemListArguments) {
+        if (environment.value(QStringLiteral("PEEKPASS_FAKE_PASS_MODE")) == QStringLiteral("list-error"))
+            return fail(QStringLiteral("vault request failed"));
         output << R"json(
 {
   "items": [

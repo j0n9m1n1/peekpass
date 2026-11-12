@@ -1,10 +1,12 @@
 #include "AppSettings.h"
 #include "I18n.h"
 #include "QuickWindow.h"
+#include "SingleInstance.h"
 #include "WinHotkey.h"
 
 #include <QApplication>
 #include <QAction>
+#include <QCommandLineParser>
 #include <QIcon>
 #include <QMenu>
 #include <QMessageBox>
@@ -27,7 +29,20 @@ int main(int argc, char* argv[])
     QApplication app(argc, argv);
     QApplication::setApplicationName("peekpass");
     QApplication::setOrganizationName("peekpass");
+    QApplication::setApplicationVersion(QStringLiteral(PEEKPASS_VERSION));
+    QCommandLineParser parser;
+    parser.addHelpOption();
+    parser.addVersionOption();
+    parser.process(app);
     QApplication::setQuitOnLastWindowClosed(false);
+    SingleInstance instance;
+    const auto instanceResult = instance.start();
+    if (instanceResult == SingleInstance::Result::ActivatedExisting)
+        return 0;
+    if (instanceResult == SingleInstance::Result::Error) {
+        QMessageBox::warning(nullptr, QStringLiteral("peekpass"), instance.errorString());
+        return 1;
+    }
     AppSettings::migratePreviousSettings();
 
     QTranslator appTranslator;
@@ -50,6 +65,14 @@ int main(int argc, char* argv[])
     }
 
     QuickWindow window;
+    instance.setActivationHandler([&window] {
+        if (window.isVisible()) {
+            window.raise();
+            window.activateWindow();
+        } else {
+            window.showQuick();
+        }
+    });
 
     QMenu trayMenu;
     QAction* openAction = trayMenu.addAction(QString());

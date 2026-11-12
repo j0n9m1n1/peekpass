@@ -145,8 +145,8 @@ PasswordManager::StatusInfo PasswordManager::statusInfo(QString* errorMessage) c
 bool PasswordManager::loginWithCredentials(const AuthRequest& request, QString* errorMessage)
 {
     if (m_type == Type::ProtonPass) {
-        return m_protonPass->loginWithCredentials(
-            request.email, request.password, request.twoFactorCode, request.extraPassword, errorMessage);
+        const auto status = m_protonPass->statusInfo(errorMessage);
+        return status.status == ProtonPassClient::Status::Unlocked;
     }
 
     return m_bitwarden->loginWithCredentials(request.serverUrl,
@@ -155,6 +155,11 @@ bool PasswordManager::loginWithCredentials(const AuthRequest& request, QString* 
         request.twoFactorMethod,
         request.twoFactorCode,
         errorMessage);
+}
+
+bool PasswordManager::startExternalLogin(QString* errorMessage) const
+{
+    return m_type == Type::ProtonPass && m_protonPass->startLogin(errorMessage);
 }
 
 bool PasswordManager::unlockWithPassword(const QString& password, QString* errorMessage)

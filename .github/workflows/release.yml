@@ -34,6 +34,14 @@ jobs:
         with:
           ref: ${{ github.event.inputs.release_tag || github.ref }}
 
+      - name: Checkout packaging tools for an existing tag
+        if: github.event.inputs.release_tag != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tools
+          sparse-checkout: packaging/windows
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -65,7 +73,7 @@ jobs:
             "-B", "build",
             "-G", "Ninja",
             "-DCMAKE_BUILD_TYPE=Release",
-            "-DBUILD_TESTING=OFF",
+            "-DBUILD_TESTING=ON",
             "-DCMAKE_CXX_COMPILER=g++.exe",
             "-DCMAKE_PREFIX_PATH=$qtPrefix"
           )
@@ -83,6 +91,9 @@ jobs:
 
       - name: Build
         run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
 
       - name: Package
         shell: pwsh
@@ -113,6 +124,10 @@ jobs:
           Copy-Item -LiteralPath $exe -Destination $stage
           Copy-Item -LiteralPath LICENSE -Destination $stage
           Copy-Item -LiteralPath README.md -Destination $stage
+          $notice = Join-Path $PWD "packaging\windows\THIRD_PARTY_NOTICES.md"
+          $workflowNotice = Join-Path $PWD ".release-tools\packaging\windows\THIRD_PARTY_NOTICES.md"
+          if (Test-Path -LiteralPath $workflowNotice) { $notice = $workflowNotice }
+          Copy-Item -LiteralPath $notice -Destination $stage
 
           if ($translations) {
             Copy-Item -LiteralPath $translations -Destination $stage -Recurse
@@ -125,14 +140,78 @@ jobs:
             --no-opengl-sw `
             (Join-Path $stage "${{ env.APP_NAME }}.exe")
 
+          if ($LASTEXITCODE -ne 0) {
+            throw "windeployqt failed with exit code $LASTEXITCODE."
+          }
+
+          $requiredFiles = @(
+            "Qt6Core.dll", "Qt6Gui.dll", "Qt6Widgets.dll", "Qt6Network.dll",
+            "platforms\qwindows.dll", "translations\peekpass_ko.qm"
+          )
+          foreach ($relativePath in $requiredFiles) {
+            if (-not (Test-Path -LiteralPath (Join-Path $stage $relativePath) -PathType Leaf)) {
+              throw "Deployment file is missing: $relativePath"
+            }
+          }
+
           Compress-Archive -Path "$stage\*" -DestinationPath $zip -Force
           "PACKAGE_PATH=$zip" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PACKAGE_STAGE=$stage" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $findCompiler = {
+            Get-ChildItem -LiteralPath "${env:ProgramFiles(x86)}", "$env:ProgramFiles" -Directory -Filter "Inno Setup *" |
+              Sort-Object Name -Descending |
+              ForEach-Object { Join-Path $_.FullName "ISCC.exe" } |
+              Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+              Select-Object -First 1
+          }
+          $iscc = & $findCompiler
+          if (-not $iscc) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) {
+              throw "Inno Setup installation failed with exit code $LASTEXITCODE."
+            }
+            $iscc = & $findCompiler
+          }
+          if (-not $iscc) {
+            throw "Inno Setup compiler was not found."
+          }
+
+          $versionMatch = [regex]::Match(
+            (Get-Content -LiteralPath CMakeLists.txt -Raw),
+            'project\(peekpass\s+VERSION\s+(\d+\.\d+\.\d+)'
+          )
+          if (-not $versionMatch.Success) {
+            throw "Could not read the application version from CMakeLists.txt."
+          }
+          $appVersion = $versionMatch.Groups[1].Value
+          $outputDirectory = Join-Path $PWD "dist"
+          $installerScript = Join-Path $PWD "packaging\windows\peekpass.iss"
+          $workflowScript = Join-Path $PWD ".release-tools\packaging\windows\peekpass.iss"
+          if (Test-Path -LiteralPath $workflowScript) {
+            $installerScript = $workflowScript
+          }
+
+          & $iscc "/DAppVersion=$appVersion" "/DStageDir=$env:PACKAGE_STAGE" "/DInstallerOutputDir=$outputDirectory" $installerScript
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+          }
+          $installer = Join-Path $outputDirectory "peekpass-$appVersion-win64-setup.exe"
+          if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) {
+            throw "Installer executable was not found."
+          }
+          "INSTALLER_PATH=$installer" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-win64
-          path: ${{ env.PACKAGE_PATH }}
+          path: |
+            ${{ env.PACKAGE_PATH }}
+            ${{ env.INSTALLER_PATH }}
           if-no-files-found: error
 
       - name: Publish GitHub Release
@@ -140,5 +219,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
-          files: ${{ env.PACKAGE_PATH }}
+          files: |
+            ${{ env.PACKAGE_PATH }}
+            ${{ env.INSTALLER_PATH }}
           generate_release_notes: true

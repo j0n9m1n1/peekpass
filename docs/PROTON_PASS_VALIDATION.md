@@ -14,9 +14,10 @@ Never add screenshots, logs, fixture files, or command output containing real cr
 ## Checklist
 
 - [ ] Start peekpass with no active Proton Pass session and select Proton Pass.
-- [ ] Confirm username/password login succeeds.
-- [ ] Confirm TOTP and extra-password prompts work when the account requires them.
-- [ ] For SSO or a hardware security key, complete `pass-cli login` in a terminal and reopen peekpass.
+- [ ] Click Browser sign-in and confirm the CLI window opens with the current `pass-cli login` command.
+- [ ] Follow the browser link and complete authentication yourself, including SSO, TOTP, or a hardware security key if required.
+- [ ] Enter any Pass extra password directly in the CLI, then click Check connection in peekpass.
+- [ ] Confirm peekpass never requests the Proton account password or creates credential files.
 - [ ] Restart peekpass and confirm the CLI-owned session is detected without another login.
 - [ ] Confirm every accessible vault contributes items to search results.
 - [ ] Search by title, username/email, URL, notes, and a non-sensitive custom field.
@@ -25,6 +26,7 @@ Never add screenshots, logs, fixture files, or command output containing real cr
 - [ ] Open details for each available item type and verify sensitive fields remain concealed until copied.
 - [ ] Run manual sync and confirm the current vault contents are reloaded.
 - [ ] Use the tray lock action and confirm it signs out of Proton Pass CLI and clears cached items.
+- [ ] Lock or log out using the CLI outside peekpass, then try copying a previously cached password; verify the copy is rejected and cached data is cleared.
 - [ ] Switch to Bitwarden and back to Proton Pass; confirm provider state and search results do not leak across backends.
 - [ ] Reset peekpass and confirm local settings are cleared and installed provider CLIs are signed out.
 

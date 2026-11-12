@@ -33,6 +33,7 @@ class QuickWindow : public QWidget
 {
 public:
     explicit QuickWindow(QWidget* parent = nullptr);
+    ~QuickWindow() override;
 
     void preloadVault();
     void showQuick();
@@ -44,6 +45,9 @@ public:
     void setSettingsChangedCallback(std::function<void()> callback);
 
 private:
+    friend class QuickWindowTestAccess;
+    void clearVaultCache();
+    void verifyVaultAction(std::function<void()> action);
     enum class AuthMode
     {
         None,
@@ -149,6 +153,7 @@ private:
     void moveToConfiguredPosition();
 
     QLineEdit* m_search = nullptr;
+    QPushButton* m_authBrowserLogin = nullptr;
     QProgressBar* m_busyBar = nullptr;
     QListWidget* m_list = nullptr;
     QLabel* m_status = nullptr;
@@ -185,6 +190,7 @@ private:
     QSet<QString> m_pendingFavicons;
     QTimer m_debounce;
     QTimer m_refreshTimer;
+    QTimer m_sessionTimer;
     std::shared_ptr<PasswordManager> m_passwordManager = std::make_shared<PasswordManager>();
     QFutureWatcher<PrepareResult> m_prepareWatcher;
     QFutureWatcher<AuthResult> m_authWatcher;
@@ -200,6 +206,9 @@ private:
     bool m_syncing = false;
     bool m_preloadPending = false;
     bool m_resetting = false;
+    bool m_backgroundSessionCheck = false;
+    bool m_executingVerifiedAction = false;
+    std::function<void()> m_pendingVaultAction;
     quint64 m_vaultGeneration = 0;
     quint64 m_clipboardGeneration = 0;
     QElapsedTimer m_preservedSearchTimer;

@@ -61,6 +61,7 @@ public:
 
     bool isAvailable(QString* errorMessage = nullptr) const;
     StatusInfo statusInfo(QString* errorMessage = nullptr) const;
+    bool startExternalLogin(QString* errorMessage = nullptr) const;
     bool loginWithCredentials(const AuthRequest& request, QString* errorMessage = nullptr);
     bool unlockWithPassword(const QString& password, QString* errorMessage = nullptr);
     bool lock(QString* errorMessage = nullptr);

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(peekpass VERSION 0.3.2 LANGUAGES CXX)
+project(peekpass VERSION 0.3.3 LANGUAGES CXX)
 
 include(CTest)
 
@@ -12,8 +12,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Concurrent LinguistTools Network)
 
 qt_standard_project_setup()
 
-qt_add_executable(peekpass WIN32
-    src/main.cpp
+add_library(peekpass_core STATIC
     src/AppSettings.cpp
     src/AppSettings.h
     src/BwClient.cpp
@@ -32,9 +31,15 @@ qt_add_executable(peekpass WIN32
     src/VaultTypes.h
     src/WinHotkey.cpp
     src/WinHotkey.h
+    src/SingleInstance.cpp
+    src/SingleInstance.h
 )
 
-target_link_libraries(peekpass PRIVATE Qt6::Widgets Qt6::Concurrent Qt6::Network)
+target_include_directories(peekpass_core PUBLIC src)
+target_link_libraries(peekpass_core PUBLIC Qt6::Widgets Qt6::Concurrent Qt6::Network)
+qt_add_executable(peekpass WIN32 src/main.cpp)
+target_link_libraries(peekpass PRIVATE peekpass_core)
+target_compile_definitions(peekpass PRIVATE PEEKPASS_VERSION="${PROJECT_VERSION}")
 
 set(PEEKPASS_TRANSLATIONS
     translations/peekpass_ko.ts
@@ -54,12 +59,13 @@ add_custom_target(peekpass_copy_translations ALL
 add_dependencies(peekpass_copy_translations peekpass_lrelease)
 
 if(WIN32)
-    target_compile_definitions(peekpass PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-    target_link_libraries(peekpass PRIVATE advapi32)
+    target_compile_definitions(peekpass_core PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_link_libraries(peekpass_core PUBLIC advapi32)
 endif()
 
 if(MSVC)
     target_compile_options(peekpass PRIVATE /utf-8)
+    target_compile_options(peekpass_core PRIVATE /utf-8)
 endif()
 
 if(BUILD_TESTING)
@@ -70,20 +76,16 @@ if(BUILD_TESTING)
 
     add_executable(peekpass_proton_tests
         tests/ProtonPassClientTests.cpp
-        src/AppSettings.cpp
-        src/AppSettings.h
-        src/I18n.cpp
-        src/I18n.h
-        src/ProtonPassClient.cpp
-        src/ProtonPassClient.h
-        src/VaultTypes.h
     )
-    target_include_directories(peekpass_proton_tests PRIVATE src)
-    target_link_libraries(peekpass_proton_tests PRIVATE Qt6::Widgets)
+    target_link_libraries(peekpass_proton_tests PRIVATE peekpass_core)
+
+    add_executable(peekpass_ui_tests tests/QuickWindowTests.cpp)
+    target_link_libraries(peekpass_ui_tests PRIVATE peekpass_core)
 
     if(MSVC)
         target_compile_options(peekpass_fake_pass_cli PRIVATE /utf-8)
         target_compile_options(peekpass_proton_tests PRIVATE /utf-8)
+        target_compile_options(peekpass_ui_tests PRIVATE /utf-8)
     endif()
 
     add_test(
@@ -91,6 +93,10 @@ if(BUILD_TESTING)
         COMMAND peekpass_proton_tests "$<TARGET_FILE:peekpass_fake_pass_cli>"
     )
     set_tests_properties(proton_pass_client PROPERTIES TIMEOUT 30)
+    add_test(NAME quick_window
+        COMMAND peekpass_ui_tests "$<TARGET_FILE:peekpass_fake_pass_cli>"
+    )
+    set_tests_properties(quick_window PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()
 
 install(TARGETS peekpass

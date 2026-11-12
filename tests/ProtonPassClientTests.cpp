@@ -50,15 +50,12 @@ int main(int argc, char* argv[])
     qputenv("PROTON_PASS_PASSWORD", "inherited-password-must-not-leak");
     qputenv("PROTON_PASS_TOTP", "inherited-totp-must-not-leak");
     qputenv("PROTON_PASS_EXTRA_PASSWORD", "inherited-extra-must-not-leak");
-    check(client.loginWithCredentials(QStringLiteral("tester@proton.me"),
-              QStringLiteral("fixture-master"),
-              QStringLiteral("123456"),
-              QStringLiteral("fixture-extra"),
-              &error),
-        QStringLiteral("File-based credential login failed: %1").arg(error));
-    check(client.hasSession(), QStringLiteral("Successful login did not mark the session active."));
+    qputenv("PROTON_PASS_PASSWORD_FILE", "must-not-be-read");
+    qputenv("PROTON_PASS_PERSONAL_ACCESS_TOKEN", "must-not-be-used");
+    check(!client.hasSession(), QStringLiteral("Session must be verified before use."));
 
     const ProtonPassClient::StatusInfo status = client.statusInfo(&error);
+    check(client.hasSession(), QStringLiteral("Verified session was not marked active."));
     check(status.status == ProtonPassClient::Status::Unlocked,
         QStringLiteral("Authenticated status was not reported as unlocked: %1").arg(error));
     check(status.userEmail == QStringLiteral("tester@proton.me"),
@@ -108,6 +105,13 @@ int main(int argc, char* argv[])
     check(unauthenticated.status == ProtonPassClient::Status::Unauthenticated,
         QStringLiteral("Unauthenticated CLI response was not recognized: %1").arg(error));
     check(error.isEmpty(), QStringLiteral("Expected unauthenticated status to be handled without an error."));
+    qunsetenv("PEEKPASS_FAKE_PASS_MODE");
+
+    client.statusInfo(&error);
+    qputenv("PEEKPASS_FAKE_PASS_MODE", "locked");
+    check(client.statusInfo(&error).status == ProtonPassClient::Status::Locked,
+        QStringLiteral("Externally locked session was not recognized."));
+    check(!client.hasSession(), QStringLiteral("Externally locked session remained usable."));
     qunsetenv("PEEKPASS_FAKE_PASS_MODE");
 
     QSettings().clear();

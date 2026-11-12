@@ -38,11 +38,7 @@ public:
 
     bool isAvailable(QString* errorMessage = nullptr) const;
     StatusInfo statusInfo(QString* errorMessage = nullptr);
-    bool loginWithCredentials(const QString& email,
-        const QString& password,
-        const QString& totp,
-        const QString& extraPassword,
-        QString* errorMessage = nullptr);
+    bool startLogin(QString* errorMessage = nullptr) const;
     bool lock(QString* errorMessage = nullptr);
     bool logout(QString* errorMessage = nullptr);
     bool sync(QString* errorMessage = nullptr) const;

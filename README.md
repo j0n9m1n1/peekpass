@@ -34,8 +34,7 @@ This project is still early, Windows-first software.
 - Selectable Bitwarden or Proton Pass backend.
 - First-run login screen that adapts to the selected password manager.
 - Bitwarden CLI login and unlock flow.
-- Proton Pass CLI (`pass-cli`) login flow, including optional TOTP and extra
-  password input.
+- Proton Pass CLI (`pass-cli`) browser sign-in and existing-session connection.
 - Startup preload so unlocked vault items are cached before the search window is opened.
 - In-memory search over item names, usernames, URIs, notes, and non-sensitive
   provider fields.
@@ -65,23 +64,31 @@ This project is still early, Windows-first software.
 
 ## Install and Run
 
-- Windows 10/11
+- Windows 10 version 1809 or later / Windows 11
 - One supported password-manager CLI:
   - Bitwarden CLI (`bw`)
   - Proton Pass CLI (`pass-cli`)
 
-1. Download the latest `peekpass-<version>-win64.zip` from the
+1. Download `peekpass-<version>-win64-setup.exe` from the
    [latest release](https://github.com/j0n9m1n1/peekpass/releases/latest).
-2. Extract the complete archive. Keep `peekpass.exe`, the Qt DLLs, and the
-   deployment subdirectories together.
+2. Run the installer. It installs for the current user without administrator
+   privileges and adds a Start menu shortcut and an uninstaller. Older releases
+   and portable use can use `peekpass-<version>-win64.zip` instead: extract the
+   complete archive and keep the Qt DLLs and deployment subdirectories together.
 3. Install at least one supported password-manager CLI.
-4. Run `peekpass.exe`. A tray notification confirms that the app is running.
+4. Launch peekpass from the Start menu, or run the portable `peekpass.exe`.
+   A tray notification confirms that the app is running.
 5. If no usable session exists, choose Bitwarden or Proton Pass in the login
    window and enter the fields shown for that provider.
 6. Press `Ctrl+Shift+Space` to open quick access.
 
 The password manager can later be changed in
 **Settings > General > Password manager**.
+The installer includes the Qt runtime; users do not need to install Qt.
+Password-manager CLIs are installed separately. Windows startup remains opt-in
+in the app settings. Uninstalling removes the startup entry but preserves app
+settings and provider sessions; use **Reset peekpass** before uninstalling if
+you want to sign out and clear those settings.
 peekpass first looks for each CLI next to the application executable. Bitwarden
 then falls back to `bw` on `PATH`. Proton Pass additionally checks its standard
 Windows install location, `%LOCALAPPDATA%\Programs\ProtonPass\pass-cli.exe`,
@@ -97,7 +104,7 @@ be set in the corresponding settings tab.
 | --- | --- | --- |
 | CLI | `bw` | `pass-cli` |
 | Server selection | Bitwarden US, Bitwarden EU, or a custom URL | Managed by Proton Pass |
-| Login inputs | Email, master password, optional 2FA method/code | Email, password, optional TOTP and extra password |
+| Login inputs | Email, master password, optional 2FA method/code | Browser sign-in through the official CLI; no account password collected by peekpass |
 | Locked session | Unlocks with `bw unlock --raw` | Log in again; dedicated lock-code unlock is not implemented |
 | Tray lock action | Runs `bw lock` | Runs `pass-cli logout` |
 | Session ownership | Optional session key storage in Windows Credential Manager | Owned by Proton Pass CLI |
@@ -142,6 +149,7 @@ shown immediately instead.
 - `src/I18n.*` and `src/TranslationCatalog.cpp` - Runtime text lookup and
   built-in translations.
 - `translations/` - Qt translation source files and translation notes.
+- `packaging/windows/peekpass.iss` - Inno Setup script for the per-user Windows installer.
 - `tests/` - A fake Proton Pass CLI and client integration test using
   provider-compatible command and JSON fixtures.
 - `docs/PROTON_PASS_VALIDATION.md` - Credential-safe live-account smoke-test
@@ -185,12 +193,41 @@ peekpass follows semantic versioning (`MAJOR.MINOR.PATCH`). Keep the version in
 `project(peekpass VERSION ...)` in `CMakeLists.txt` aligned with the Git tag.
 
 The workflow creates a `peekpass-<tag>-win64.zip` package with `peekpass.exe`,
-Qt runtime DLLs from `windeployqt`, translations, `README.md`, and `LICENSE`, then
-attaches it to the GitHub Release. It can also be run manually from the Actions
-tab. To rebuild an existing tag after fixing the release workflow, run the
+Qt runtime DLLs from `windeployqt`, translations, `README.md`, and `LICENSE`, plus
+a `peekpass-<version>-win64-setup.exe` installer built with Inno Setup 6.3 or later.
+Both files are attached to the GitHub Release. It can also be run manually from
+the Actions tab. To rebuild an existing tag after fixing the release workflow, run the
 workflow from `main` and enter that tag in the `release_tag` input. Leave
 `release_tag` empty for a build-only manual run. Use a new version tag for each
 source release.
+
+To package a local Release build with its Qt runtime and translations, run:
+
+```powershell
+.\packaging\windows\package.ps1 -QtDir C:\Qt\6.12.0\mingw_64
+```
+
+This creates `dist/peekpass-0.3.3-win64-setup.exe` and the portable ZIP. The
+script discovers Inno Setup 6 or 7 in system and per-user installation directories;
+`-IsccPath` overrides it.
+
+To invoke Inno Setup directly, first assemble a Release deployment folder with
+`windeployqt` and copy the app translations, `README.md`, and `LICENSE` into it.
+Then run Inno Setup 6.3 or later, using absolute paths for the deployment and
+output directories (adjust the version to match `CMakeLists.txt`):
+
+```powershell
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+  "/DAppVersion=0.3.3" `
+  "/DStageDir=$PWD\dist\peekpass-v0.3.3-win64" `
+  "/DInstallerOutputDir=$PWD\dist" `
+  ".\packaging\windows\peekpass.iss"
+```
+
+MSIX is also possible for this Qt desktop app, but needs a package manifest,
+trusted package signing (or Store signing), and a packaged-app startup task in
+place of the current registry-based startup registration. The current release
+workflow produces the portable ZIP and Inno Setup installer.
 
 The latest published package is available on the
 [Releases page](https://github.com/j0n9m1n1/peekpass/releases).
@@ -245,6 +282,10 @@ Windows startup, and closes the app.
 - Vault item fields needed for quick search and copy are cached in memory while
   the app is running.
 - In-memory vault data is cleared when the vault is locked or the app exits.
+- CLI session state is rechecked when reopening quick access and before copying
+  or opening details. Background checks run every 15 seconds. Failed checks or
+  refreshes discard cached data, close detail windows, and clear owned clipboard
+  content.
 - Passwords and TOTP codes copied to the clipboard are cleared after 30 seconds if
   peekpass still owns the same clipboard content.
 - Sensitive clipboard entries opt out of Windows clipboard history and cloud sync.
@@ -253,13 +294,14 @@ Windows startup, and closes the app.
   key, not the master password.
 - Logging out runs `bw logout`, clears in-memory vault data, and removes the
   stored peekpass session.
-- Proton Pass login delegates to `pass-cli login --interactive`. Proton Pass CLI
+- Proton Pass login opens `pass-cli login` in an interactive CLI window. Follow
+  its browser link, complete authentication, then click **Check connection**.
+  Accounts with extra passwords enter them directly into the CLI. Proton Pass CLI
   owns its own local session; peekpass does not copy that session into Windows
   Credential Manager.
-- Proton login credentials are passed through owner-only, short-lived temporary
-  credential files supported by `pass-cli`, rather than direct-value environment
-  variables. Inherited Proton credential variables are removed from the child
-  process before those files are supplied.
+- peekpass does not collect Proton account passwords or create credential files.
+  Inherited Proton credential and personal-access-token variables are removed
+  from child processes.
 - Item details use provider-specific field sections so Bitwarden and Proton Pass
   item schemas are not forced into the same display model.
 - Until a dedicated Proton Pass CLI lock-code UI exists, the tray action for

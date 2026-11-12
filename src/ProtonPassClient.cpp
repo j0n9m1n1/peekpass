@@ -13,10 +13,14 @@
 #include <QJsonParseError>
 #include <QMutexLocker>
 #include <QProcess>
-#include <QTemporaryDir>
+#include <QStandardPaths>
 #include <QtGlobal>
 
 #include <utility>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 namespace
 {
@@ -256,35 +260,18 @@ void appendProviderSections(const QJsonObject& item,
         target->push_back(std::move(metadataSection));
 }
 
-class ScopedSecretFile
+QProcessEnvironment cleanLoginEnvironment()
 {
-public:
-    bool writeSecret(const QString& value)
-    {
-        if (!m_directory.isValid())
-            return false;
-
-        m_file.setFileName(m_directory.filePath(QStringLiteral("credential")));
-        if (!m_file.open(QIODevice::WriteOnly | QIODevice::Truncate,
-                QFileDevice::ReadOwner | QFileDevice::WriteOwner)) {
-            return false;
-        }
-        QByteArray bytes = value.toUtf8();
-        const bool written = m_file.write(bytes) == bytes.size() && m_file.flush();
-        bytes.fill('\0');
-        m_file.close();
-        return written;
+    auto environment = QProcessEnvironment::systemEnvironment();
+    for (const QString& key : environment.keys()) {
+        if (key.startsWith(QStringLiteral("PROTON_PASS_"))
+            && (key.contains(QStringLiteral("PASSWORD")) || key.contains(QStringLiteral("TOTP"))
+                || key.contains(QStringLiteral("PERSONAL_ACCESS_TOKEN"))))
+            environment.remove(key);
     }
-
-    QString fileName() const
-    {
-        return m_file.fileName();
-    }
-
-private:
-    QTemporaryDir m_directory;
-    QFile m_file;
-};
+    environment.insert(QStringLiteral("NO_COLOR"), QStringLiteral("1"));
+    return environment;
+}
 
 QString objectField(const QJsonObject& object, const QString& name)
 {
@@ -509,6 +496,14 @@ ProtonPassClient::StatusInfo ProtonPassClient::statusInfo(QString* errorMessage)
         const QString diagnostic = (trimmedUtf8(result.standardOutput) + QLatin1Char('\n')
                                        + trimmedUtf8(result.standardError) + QLatin1Char('\n') + result.errorString)
                                        .toLower();
+        if (diagnostic.contains(QStringLiteral("session is locked"))
+            || diagnostic.contains(QStringLiteral("session locked"))
+            || diagnostic.contains(QStringLiteral("session needs to be unlocked"))) {
+            clearSession();
+            info.status = Status::Locked;
+            setError(errorMessage, {});
+            return info;
+        }
         if (diagnostic.contains(QStringLiteral("not logged"))
             || diagnostic.contains(QStringLiteral("not authenticated"))
             || diagnostic.contains(QStringLiteral("no active session"))
@@ -547,53 +542,33 @@ ProtonPassClient::StatusInfo ProtonPassClient::statusInfo(QString* errorMessage)
     return info;
 }
 
-bool ProtonPassClient::loginWithCredentials(const QString& email,
-    const QString& password,
-    const QString& totp,
-    const QString& extraPassword,
-    QString* errorMessage)
+bool ProtonPassClient::startLogin(QString* errorMessage) const
 {
-    if (email.trimmed().isEmpty() || password.isEmpty()) {
-        setError(errorMessage,
-            uiText("Enter your Proton account email and password.", "Proton 계정 이메일과 비밀번호를 입력하세요."));
+    const QString executable = QStandardPaths::findExecutable(program());
+    if (executable.isEmpty()) {
+        setError(errorMessage, uiText("Proton Pass CLI was not found. Set its location in Settings.",
+            "Proton Pass CLI를 찾지 못함. 설정에서 실행 파일 위치를 지정해라."));
         return false;
     }
-
-    ScopedSecretFile passwordFile;
-    ScopedSecretFile totpFile;
-    ScopedSecretFile extraPasswordFile;
-    if (!passwordFile.writeSecret(password)
-        || (!totp.isEmpty() && !totpFile.writeSecret(totp))
-        || (!extraPassword.isEmpty() && !extraPasswordFile.writeSecret(extraPassword))) {
-        setError(errorMessage,
-            uiText("Could not create a protected temporary credential file.",
-                   "보호된 임시 인증 파일을 만들지 못했습니다."));
-        return false;
-    }
-
-    QProcessEnvironment environment;
-    environment.insert(QStringLiteral("PROTON_PASS_PASSWORD_FILE"), passwordFile.fileName());
-    if (!totp.isEmpty())
-        environment.insert(QStringLiteral("PROTON_PASS_TOTP_FILE"), totpFile.fileName());
-    if (!extraPassword.isEmpty())
-        environment.insert(QStringLiteral("PROTON_PASS_EXTRA_PASSWORD_FILE"), extraPasswordFile.fileName());
-
-    const CommandResult result = run(
-        {QStringLiteral("login"), QStringLiteral("--interactive"), email.trimmed()}, 60000, environment);
-
-    if (!result.ok()) {
-        setError(errorMessage,
-            describeCommandError(program(), {QStringLiteral("login"), QStringLiteral("--interactive"), email.trimmed()}, result));
-        return false;
-    }
-
-    {
-        QMutexLocker<QMutex> locker(&m_stateMutex);
-        m_sessionActive = true;
-        m_sessionLocked = false;
-    }
-    setError(errorMessage, {});
-    return true;
+    QProcess process;
+    process.setProgram(executable);
+    process.setArguments({QStringLiteral("login")});
+    process.setProcessEnvironment(cleanLoginEnvironment());
+#ifdef Q_OS_WIN
+    // The user completes browser authentication and any extra-password prompt.
+    process.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* arguments) {
+        arguments->flags &= ~DWORD(DETACHED_PROCESS | CREATE_NO_WINDOW);
+        arguments->flags |= CREATE_NEW_CONSOLE;
+        arguments->startupInfo->dwFlags &= ~DWORD(STARTF_USESTDHANDLES);
+    });
+#else
+    setError(errorMessage, uiText("Run pass-cli login in a terminal, then check the connection here.",
+        "터미널에서 pass-cli login 실행 후 여기서 연결 확인을 눌러라."));
+    return false;
+#endif
+    const bool started = process.startDetached();
+    setError(errorMessage, started ? QString() : process.errorString());
+    return started;
 }
 
 bool ProtonPassClient::lock(QString* errorMessage)
@@ -896,7 +871,7 @@ ProtonPassClient::CommandResult ProtonPassClient::run(const QStringList& argumen
     process.setArguments(arguments);
     process.setProcessChannelMode(QProcess::SeparateChannels);
 
-    QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
+    QProcessEnvironment environment = cleanLoginEnvironment();
     const QStringList credentialVariables = {
         QStringLiteral("PROTON_PASS_PASSWORD"),
         QStringLiteral("PROTON_PASS_PASSWORD_FILE"),
