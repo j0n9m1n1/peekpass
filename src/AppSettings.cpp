@@ -50,6 +50,8 @@ const char* AutoSyncIntervalMinutesKey = "bitwarden/autoSyncIntervalMinutes";
 const char* CloseOnFocusLossKey = "window/closeOnFocusLoss";
 const char* CredentialSessionStorageEnabledKey = "security/credentialSessionStorageEnabled";
 const char* StartOnLoginKey = "system/startOnLogin";
+const char* AutoCheckUpdatesEnabledKey = "updates/autoCheckEnabled";
+const char* LastUpdateCheckEpochSecondsKey = "updates/lastCheckEpochSeconds";
 const char* StartOnLoginName = "peekpass";
 const char* OlderStartOnLoginName = "PeekWarden";
 const char* WindowsRunKey = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -587,6 +589,26 @@ bool AppSettings::applyStartupPreference(QString* errorMessage)
     setError(errorMessage, {});
     return true;
 #endif
+}
+
+bool AppSettings::autoCheckUpdatesEnabled()
+{
+    return QSettings().value(AutoCheckUpdatesEnabledKey, true).toBool();
+}
+
+void AppSettings::setAutoCheckUpdatesEnabled(bool enabled)
+{
+    QSettings().setValue(AutoCheckUpdatesEnabledKey, enabled);
+}
+
+qint64 AppSettings::lastUpdateCheckEpochSeconds()
+{
+    return QSettings().value(LastUpdateCheckEpochSecondsKey, 0).toLongLong();
+}
+
+void AppSettings::setLastUpdateCheckEpochSeconds(qint64 epochSeconds)
+{
+    QSettings().setValue(LastUpdateCheckEpochSecondsKey, qMax<qint64>(0, epochSeconds));
 }
 
 QString AppSettings::passwordManagerType()

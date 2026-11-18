@@ -86,6 +86,11 @@ public:
     static bool setStartOnLoginEnabled(bool enabled, QString* errorMessage = nullptr);
     static bool applyStartupPreference(QString* errorMessage = nullptr);
 
+    static bool autoCheckUpdatesEnabled();
+    static void setAutoCheckUpdatesEnabled(bool enabled);
+    static qint64 lastUpdateCheckEpochSeconds();
+    static void setLastUpdateCheckEpochSeconds(qint64 epochSeconds);
+
     static QString passwordManagerType();
     static void setPasswordManagerType(const QString& type);
 

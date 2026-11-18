@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(peekpass VERSION 0.3.5 LANGUAGES CXX)
+project(peekpass VERSION 0.3.6 LANGUAGES CXX)
 
 include(CTest)
 
@@ -32,6 +32,8 @@ add_library(peekpass_core STATIC
     src/TotpGenerator.cpp
     src/TotpGenerator.h
     src/TranslationCatalog.cpp
+    src/UpdateChecker.cpp
+    src/UpdateChecker.h
     src/VaultTypes.h
     src/WinHotkey.cpp
     src/WinHotkey.h

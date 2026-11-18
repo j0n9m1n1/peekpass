@@ -2,9 +2,11 @@
 
 #include "AppSettings.h"
 #include "I18n.h"
+#include "UpdateChecker.h"
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QFormLayout>
@@ -259,6 +261,15 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         uiText("Registers the deployed peekpass executable for the current Windows user. Bare development builds without Qt runtime files cannot be registered.",
                "배포된 peekpass 실행 파일을 현재 Windows 사용자에 등록합니다. Qt 런타임 파일이 없는 개발 빌드는 등록할 수 없습니다."));
 
+    m_autoCheckUpdatesCheck = new QCheckBox(
+        uiText("Check for updates automatically on startup", "시작 시 자동으로 업데이트 확인"),
+        this);
+    m_autoCheckUpdatesCheck->setChecked(AppSettings::autoCheckUpdatesEnabled());
+
+    m_checkUpdatesButton = new QPushButton(
+        uiText("Check for updates...", "업데이트 확인..."),
+        this);
+
     m_logoutButton = new QPushButton(uiText("Log out of Bitwarden...", "Bitwarden 로그아웃..."), this);
     m_logoutButton->setObjectName("dangerButton");
     m_logoutButton->setToolTip(
@@ -433,6 +444,20 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     auto* securityForm = makeGroup(uiText("Security and Startup", "보안/시작"), behaviorTab);
     securityForm->addRow(m_credentialSessionStorageCheck);
     securityForm->addRow(m_startOnLoginCheck);
+    securityForm->addRow(m_autoCheckUpdatesCheck);
+
+    auto* updateRowLayout = new QHBoxLayout;
+    updateRowLayout->setContentsMargins(0, 0, 0, 0);
+    updateRowLayout->setSpacing(8);
+    auto* versionLabel = new QLabel(
+        uiText("Current version: v%1", "현재 버전: v%1").arg(QCoreApplication::applicationVersion()),
+        this);
+    versionLabel->setObjectName("settingsNote");
+    updateRowLayout->addWidget(versionLabel);
+    updateRowLayout->addStretch(1);
+    updateRowLayout->addWidget(m_checkUpdatesButton);
+    securityForm->addRow(updateRowLayout);
+
     securityForm->addRow(m_logoutButton);
     securityForm->addRow(m_resetButton);
     behaviorTab->addStretch(1);
@@ -517,6 +542,9 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         m_protonPassPathEdit->clear();
     });
 
+    connect(m_checkUpdatesButton, &QPushButton::clicked, this, [this] {
+        UpdateChecker::instance().checkForUpdates(true, this);
+    });
     connect(m_logoutButton, &QPushButton::clicked, this, [this] {
         requestLogout();
     });
@@ -707,6 +735,7 @@ void SettingsDialog::saveAndAccept()
     AppSettings::setAutoSyncIntervalMinutes(m_autoSyncIntervalSpin->value());
     AppSettings::setCloseOnFocusLoss(m_closeOnFocusLossCheck->isChecked());
     AppSettings::setCredentialSessionStorageEnabled(m_credentialSessionStorageCheck->isChecked());
+    AppSettings::setAutoCheckUpdatesEnabled(m_autoCheckUpdatesCheck->isChecked());
     AppSettings::setBwProgramOverride(m_bwPathEdit->text());
     AppSettings::setProtonPassProgramOverride(m_protonPassPathEdit->text());
     accept();

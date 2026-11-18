@@ -2,6 +2,7 @@
 #include "I18n.h"
 #include "QuickWindow.h"
 #include "SingleInstance.h"
+#include "UpdateChecker.h"
 #include "WinHotkey.h"
 
 #include <QApplication>
@@ -111,6 +112,7 @@ int main(int argc, char* argv[])
     QAction* lockAction = trayMenu.addAction(QString());
     trayMenu.addSeparator();
     QAction* settingsAction = trayMenu.addAction(QString());
+    QAction* checkUpdateAction = trayMenu.addAction(QString());
     trayMenu.addSeparator();
     QAction* quitAction = trayMenu.addAction(QString());
 
@@ -121,6 +123,7 @@ int main(int argc, char* argv[])
         else
             lockAction->setText(uiText("Lock", "잠금"));
         settingsAction->setText(uiText("Settings", "설정"));
+        checkUpdateAction->setText(uiText("Check for updates...", "업데이트 확인..."));
         quitAction->setText(uiText("Quit", "종료"));
     };
     updateTrayTexts();
@@ -158,6 +161,10 @@ int main(int argc, char* argv[])
 
     QObject::connect(settingsAction, &QAction::triggered, &window, [&window] {
         window.showSettings();
+    });
+
+    QObject::connect(checkUpdateAction, &QAction::triggered, &window, [&window, &trayIcon] {
+        UpdateChecker::instance().checkForUpdates(true, &window, &trayIcon);
     });
 
     QObject::connect(quitAction, &QAction::triggered, &app, [&trayIcon] {
@@ -235,6 +242,10 @@ int main(int argc, char* argv[])
 
     QTimer::singleShot(0, &window, [&window] {
         window.preloadVault();
+    });
+
+    QTimer::singleShot(4000, &window, [&window, &trayIcon] {
+        UpdateChecker::instance().checkOnStartupIfDue(&window, &trayIcon);
     });
 
     return app.exec();

@@ -57,4 +57,4 @@ Name: "{userdesktop}\peekpass"; Filename: "{app}\peekpass.exe"; Tasks: desktopic
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: "{#StartupValueName}"; Flags: uninsdeletevalue
 
 [Run]
-Filename: "{app}\peekpass.exe"; Description: "Launch peekpass"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\peekpass.exe"; Description: "Launch peekpass"; Flags: nowait postinstall

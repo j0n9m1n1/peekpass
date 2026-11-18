@@ -45,7 +45,9 @@ This project is still early, Windows-first software.
   show/hide secret toggles, live TOTP code and countdown timer, website open/copy
   actions, notes copy, and formatted provider metadata where available.
 - Optional web favicon loading for search results.
-- System tray menu with open, lock, settings, and quit.
+- System tray menu with open, lock, settings, check for updates, and quit.
+- Built-in update checker (via GitHub Releases) with one-click in-app installer
+  download and automatic restart, plus optional startup update checks.
 - Settings actions to log out of the selected password manager or reset local
   peekpass data and return to first-run state.
 - Configurable hotkey, shortcut preset, quick window size, position, opacity, corner style, theme, font, language, result fields, result count, auto-sync interval, and focus-loss behavior.
@@ -140,6 +142,8 @@ shown immediately instead.
   secret toggles, live TOTP countdown, website open/copy actions, notes copy,
   and provider-specific card sections.
 - `src/TotpGenerator.*` - RFC 6238 TOTP code and countdown generator.
+- `src/UpdateChecker.*` - GitHub Release update checker and one-click in-app
+  installer download/update dialog.
 - `src/BwClient.*` - Bitwarden CLI wrapper for status, login, unlock, sync,
   item retrieval, sensitive field lookup, and session handling.
 - `src/ProtonPassClient.*` - Proton Pass CLI wrapper for status, login, vault
@@ -212,7 +216,7 @@ To package a local Release build with its Qt runtime and translations, run:
 .\packaging\windows\package.ps1 -QtDir C:\Qt\6.12.0\mingw_64
 ```
 
-This creates `dist/peekpass-0.3.5-win64-setup.exe` and the portable ZIP. The
+This creates `dist/peekpass-0.3.6-win64-setup.exe` and the portable ZIP. The
 script discovers Inno Setup 6 or 7 in system and per-user installation directories;
 `-IsccPath` overrides it.
 
@@ -223,8 +227,8 @@ output directories (adjust the version to match `CMakeLists.txt`):
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-  "/DAppVersion=0.3.5" `
-  "/DStageDir=$PWD\dist\peekpass-v0.3.5-win64" `
+  "/DAppVersion=0.3.6" `
+  "/DStageDir=$PWD\dist\peekpass-v0.3.6-win64" `
   "/DInstallerOutputDir=$PWD\dist" `
   ".\packaging\windows\peekpass.iss"
 ```

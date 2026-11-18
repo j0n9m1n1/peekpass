@@ -3,6 +3,7 @@
 #include "QuickWindow.h"
 #include "SettingsDialog.h"
 #include "SingleInstance.h"
+#include "UpdateChecker.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -238,6 +239,46 @@ public:
         snapshot(window, QStringLiteral("bitwarden-login-light-ko"));
         check(window.m_authPassword->isVisible(), "Bitwarden master-password field was missing.");
         window.hide();
+
+        const QByteArray releasePayload = R"({
+            "tag_name": "v0.3.6",
+            "html_url": "https://github.com/j0n9m1n1/peekpass/releases/tag/v0.3.6",
+            "body": "- Added one-click update installer\n- Improved item details",
+            "assets": [
+                {
+                    "name": "peekpass-v0.3.6-win64.zip",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.6/peekpass-v0.3.6-win64.zip",
+                    "size": 123456
+                },
+                {
+                    "name": "peekpass-0.3.6-win64-setup.exe",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.6/peekpass-0.3.6-win64-setup.exe",
+                    "size": 654321
+                }
+            ]
+        })";
+
+        QString parseError;
+        const UpdateReleaseInfo newerInfo = UpdateChecker::parseLatestReleaseJson(
+            releasePayload,
+            QStringLiteral("0.3.5"),
+            &parseError);
+        check(parseError.isEmpty(), "Valid GitHub release JSON returned a parse error.");
+        check(newerInfo.updateAvailable, "Newer release was not detected as an available update.");
+        check(newerInfo.latestVersion == QStringLiteral("0.3.6"), "Latest version string was not normalized.");
+        check(newerInfo.installerName == QStringLiteral("peekpass-0.3.6-win64-setup.exe"),
+            "Installer asset name was not selected.");
+        check(newerInfo.installerSize == 654321, "Installer asset size did not match.");
+
+        const UpdateReleaseInfo sameInfo = UpdateChecker::parseLatestReleaseJson(
+            releasePayload,
+            QStringLiteral("0.3.6"),
+            &parseError);
+        check(!sameInfo.updateAvailable, "Current version was falsely marked as needing an update.");
+
+        UpdateDialog updateDialog(newerInfo);
+        snapshot(updateDialog, QStringLiteral("update-dialog-light-ko"));
+        updateDialog.hide();
     }
 };
 

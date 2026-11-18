@@ -294,4 +294,34 @@ namespace
     QT_TRANSLATE_NOOP("ProtonPassClient", "%1 crashed."),
     QT_TRANSLATE_NOOP("ProtonPassClient", "%1 failed with exit code %2.")
 };
+
+[[maybe_unused]] const char* const UpdateCheckerMessages[] = {
+    QT_TRANSLATE_NOOP("Main", "Check for updates..."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Check for updates automatically on startup"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Check for updates..."),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Current version: v%1"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Software Update"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "A new version of peekpass is available"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Release notes"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Includes bug fixes and stability improvements."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Release page"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Later"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Update now"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Cancel"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Could not create temporary installer file."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Downloading update installer..."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Downloading update... %1% (%2 / %3)"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Downloading update... %1"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Download failed: %1"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Downloaded installer file could not be verified."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Could not prepare the installer executable."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Launching installer and restarting peekpass..."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Could not start the installer automatically."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Could not parse release information from GitHub."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Received an invalid version number from the release server."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Check for updates"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Could not check for updates.\n\n%1"),
+    QT_TRANSLATE_NOOP("UpdateChecker", "You are using the latest version (v%1)."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "A new update (v%1) is available.")
+};
 }

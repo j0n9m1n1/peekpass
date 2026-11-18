@@ -27,6 +27,7 @@ Provider-specific behavior belongs in `BwClient` or `ProtonPassClient`. UI code 
 - Password, username, and TOTP copy actions.
 - Sensitive clipboard clearing after 30 seconds.
 - Standalone item details dialog (`ItemDetailDialog`) with show/hide secret toggles, live TOTP code and countdown (`TotpGenerator`), website open/copy actions, and notes copy.
+- GitHub Release update checker (`UpdateChecker`) with tray/settings triggers, optional startup check, and one-click in-app installer download and restart.
 - Tray menu, settings, startup registration, and English/Korean UI.
 
 ## Security Requirements

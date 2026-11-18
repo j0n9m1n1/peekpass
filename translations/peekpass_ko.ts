@@ -69,6 +69,10 @@ Press %1 to open quick access.</source>
         <translation>peekpass가 실행 중입니다.
 %1 키로 빠른 액세스를 열 수 있습니다.</translation>
     </message>
+    <message>
+        <source>Check for updates...</source>
+        <translation>업데이트 확인...</translation>
+    </message>
 </context>
 <context>
     <name>WinHotkey</name>
@@ -1058,6 +1062,117 @@ Esc: 닫기</translation>
     <message>
         <source>Registers the deployed peekpass executable for the current Windows user. Bare development builds without Qt runtime files cannot be registered.</source>
         <translation>배포된 peekpass 실행 파일을 현재 Windows 사용자에 등록합니다. Qt 런타임 파일이 없는 개발 빌드는 등록할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Check for updates automatically on startup</source>
+        <translation>시작 시 자동으로 업데이트 확인</translation>
+    </message>
+    <message>
+        <source>Check for updates...</source>
+        <translation>업데이트 확인...</translation>
+    </message>
+    <message>
+        <source>Current version: v%1</source>
+        <translation>현재 버전: v%1</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateChecker</name>
+    <message>
+        <source>Software Update</source>
+        <translation>소프트웨어 업데이트</translation>
+    </message>
+    <message>
+        <source>A new version of peekpass is available</source>
+        <translation>새로운 peekpass 버전이 출시되었습니다</translation>
+    </message>
+    <message>
+        <source>Release notes</source>
+        <translation>변경 사항</translation>
+    </message>
+    <message>
+        <source>Includes bug fixes and stability improvements.</source>
+        <translation>버그 수정 및 안정성 개선 사항이 포함되어 있습니다.</translation>
+    </message>
+    <message>
+        <source>Release page</source>
+        <translation>릴리스 페이지</translation>
+    </message>
+    <message>
+        <source>Later</source>
+        <translation>나중에</translation>
+    </message>
+    <message>
+        <source>Update now</source>
+        <translation>지금 업데이트</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>취소</translation>
+    </message>
+    <message>
+        <source>Could not create temporary installer file.</source>
+        <translation>임시 설치 파일을 생성하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Downloading update installer...</source>
+        <translation>업데이트 설치 파일을 다운로드하는 중입니다...</translation>
+    </message>
+    <message>
+        <source>Downloading update... %1% (%2 / %3)</source>
+        <translation>업데이트 다운로드 중... %1% (%2 / %3)</translation>
+    </message>
+    <message>
+        <source>Downloading update... %1</source>
+        <translation>업데이트 다운로드 중... %1</translation>
+    </message>
+    <message>
+        <source>Download failed: %1</source>
+        <translation>다운로드에 실패했습니다: %1</translation>
+    </message>
+    <message>
+        <source>Downloaded installer file could not be verified.</source>
+        <translation>다운로드된 설치 파일을 검증하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Could not prepare the installer executable.</source>
+        <translation>설치 실행 파일을 준비하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Launching installer and restarting peekpass...</source>
+        <translation>설치 프로그램을 실행하고 peekpass를 다시 시작합니다...</translation>
+    </message>
+    <message>
+        <source>Could not start the installer automatically.</source>
+        <translation>설치 프로그램을 자동으로 실행하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Could not parse release information from GitHub.</source>
+        <translation>GitHub에서 릴리스 정보를 해석하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Received an invalid version number from the release server.</source>
+        <translation>릴리스 서버에서 올바르지 않은 버전 번호를 받았습니다.</translation>
+    </message>
+    <message>
+        <source>Check for updates</source>
+        <translation>업데이트 확인</translation>
+    </message>
+    <message>
+        <source>Could not check for updates.
+
+%1</source>
+        <translation>업데이트를 확인하지 못했습니다.
+
+%1</translation>
+    </message>
+    <message>
+        <source>You are using the latest version (v%1).</source>
+        <translation>현재 최신 버전(v%1)을 사용 중입니다.</translation>
+    </message>
+    <message>
+        <source>A new update (v%1) is available.</source>
+        <translation>새 업데이트(v%1)가 출시되었습니다.</translation>
     </message>
 </context>
 </TS>
