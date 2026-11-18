@@ -1,4 +1,5 @@
 #include "AppSettings.h"
+#include "ItemDetailDialog.h"
 #include "QuickWindow.h"
 #include "SettingsDialog.h"
 #include "SingleInstance.h"
@@ -71,6 +72,7 @@ public:
         window.m_itemsReady = true;
         window.m_currentUserEmail = QStringLiteral("tester@proton.me");
         window.hideAuthPanel();
+        window.m_search->setEnabled(true);
         window.show();
         window.m_search->setText(QStringLiteral("Example"));
         window.startSearch(QStringLiteral("Example"));
@@ -157,6 +159,23 @@ public:
 
         seed(window);
         snapshot(window, QStringLiteral("search-dark"));
+        {
+            const VaultItem& sampleItem = window.m_cachedItems.constFirst();
+            ItemDetailDialog detailDark(
+                sampleItem.id,
+                sampleItem.name,
+                window.m_list->item(0)->icon(),
+                {},
+                {});
+            detailDark.setDetails(PasswordManager::detailsFromVaultItem(sampleItem));
+            snapshot(detailDark, QStringLiteral("detail-dark"));
+            detailDark.hide();
+        }
+        window.m_search->clear();
+        window.reload();
+        snapshot(window, QStringLiteral("empty-search-dark"));
+        window.m_search->setText(QStringLiteral("Example"));
+        window.startSearch(QStringLiteral("Example"));
         QSet<int> hintRows;
         for (QLabel* hint : window.m_footer->findChildren<QLabel*>(QStringLiteral("footerShortcut"))) {
             if (hint->isVisible()) {
@@ -174,6 +193,20 @@ public:
         check(window.rect().contains(window.m_authSubmit->mapTo(&window, window.m_authSubmit->rect().bottomRight())),
             "Connection button is clipped.");
 
+        {
+            SettingsDialog darkSettings;
+            snapshot(darkSettings, QStringLiteral("settings-dark"));
+            darkSettings.hide();
+        }
+        {
+            AppSettings::setPasswordManagerType(QStringLiteral("bitwarden"));
+            window.m_passwordManager = std::make_shared<PasswordManager>(PasswordManager::Type::Bitwarden);
+            window.showAuthPanel(QuickWindow::AuthMode::Login);
+            snapshot(window, QStringLiteral("bitwarden-login-dark"));
+            AppSettings::setPasswordManagerType(QStringLiteral("protonpass"));
+            window.m_passwordManager = std::make_shared<PasswordManager>(PasswordManager::Type::ProtonPass);
+        }
+
         AppSettings::setTheme(QStringLiteral("light"));
         AppSettings::setLanguage(QStringLiteral("ko"));
         window.applySettings();
@@ -183,6 +216,20 @@ public:
         SettingsDialog settings;
         snapshot(settings, QStringLiteral("settings-light-ko"));
         settings.hide();
+
+        {
+            seed(window);
+            const VaultItem& sampleItem = window.m_cachedItems.constFirst();
+            ItemDetailDialog detailLightKo(
+                sampleItem.id,
+                sampleItem.name,
+                window.m_list->item(0)->icon(),
+                {},
+                {});
+            detailLightKo.setDetails(PasswordManager::detailsFromVaultItem(sampleItem));
+            snapshot(detailLightKo, QStringLiteral("detail-light-ko"));
+            detailLightKo.hide();
+        }
 
         // Explicit construction skips settings reload and keeps real credentials untouched.
         AppSettings::setPasswordManagerType(QStringLiteral("bitwarden"));

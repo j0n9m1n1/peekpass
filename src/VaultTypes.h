@@ -1,8 +1,17 @@
 #pragma once
 
+#include <QChar>
 #include <QString>
 #include <QStringList>
 #include <QVector>
+
+inline void scrubSecretString(QString& value)
+{
+    if (!value.isEmpty()) {
+        value.fill(QChar('\0'));
+        value.clear();
+    }
+}
 
 struct VaultCardData
 {
@@ -12,6 +21,16 @@ struct VaultCardData
     QString expirationMonth;
     QString expirationYear;
     QString securityCode;
+
+    void scrub()
+    {
+        scrubSecretString(cardholderName);
+        scrubSecretString(brand);
+        scrubSecretString(number);
+        scrubSecretString(expirationMonth);
+        scrubSecretString(expirationYear);
+        scrubSecretString(securityCode);
+    }
 };
 
 struct VaultIdentityData
@@ -34,6 +53,19 @@ struct VaultIdentityData
     QString socialSecurityNumber;
     QString passportNumber;
     QString licenseNumber;
+
+    void scrub()
+    {
+        scrubSecretString(socialSecurityNumber);
+        scrubSecretString(passportNumber);
+        scrubSecretString(licenseNumber);
+        scrubSecretString(email);
+        scrubSecretString(phone);
+        scrubSecretString(username);
+        scrubSecretString(address1);
+        scrubSecretString(address2);
+        scrubSecretString(address3);
+    }
 };
 
 struct VaultSshKeyData
@@ -41,6 +73,13 @@ struct VaultSshKeyData
     QString privateKey;
     QString publicKey;
     QString fingerprint;
+
+    void scrub()
+    {
+        scrubSecretString(privateKey);
+        scrubSecretString(publicKey);
+        scrubSecretString(fingerprint);
+    }
 };
 
 struct VaultCustomField
@@ -48,6 +87,12 @@ struct VaultCustomField
     QString name;
     QString value;
     int typeCode = 0;
+
+    void scrub()
+    {
+        scrubSecretString(name);
+        scrubSecretString(value);
+    }
 };
 
 struct VaultDetailField
@@ -57,6 +102,12 @@ struct VaultDetailField
     bool sensitive = false;
     bool totpSecret = false;
     bool website = false;
+
+    void scrub()
+    {
+        scrubSecretString(name);
+        scrubSecretString(value);
+    }
 };
 
 struct VaultDetailSection
@@ -64,6 +115,13 @@ struct VaultDetailSection
     QString title;
     QVector<VaultDetailField> fields;
     bool searchable = true;
+
+    void scrub()
+    {
+        for (VaultDetailField& field : fields)
+            field.scrub();
+        fields.clear();
+    }
 };
 
 struct VaultItem
@@ -89,6 +147,23 @@ struct VaultItem
     QString deletedDate;
     QStringList uris;
     QVector<VaultDetailSection> providerSections;
+
+    void scrub()
+    {
+        scrubSecretString(username);
+        scrubSecretString(password);
+        scrubSecretString(totp);
+        scrubSecretString(notes);
+        card.scrub();
+        identity.scrub();
+        sshKey.scrub();
+        for (VaultCustomField& field : customFields)
+            field.scrub();
+        customFields.clear();
+        for (VaultDetailSection& section : providerSections)
+            section.scrub();
+        providerSections.clear();
+    }
 };
 
 struct VaultItemDetails
@@ -114,4 +189,21 @@ struct VaultItemDetails
     QString deletedDate;
     QStringList uris;
     QVector<VaultDetailSection> providerSections;
+
+    void scrub()
+    {
+        scrubSecretString(username);
+        scrubSecretString(password);
+        scrubSecretString(totp);
+        scrubSecretString(notes);
+        card.scrub();
+        identity.scrub();
+        sshKey.scrub();
+        for (VaultCustomField& field : customFields)
+            field.scrub();
+        customFields.clear();
+        for (VaultDetailSection& section : providerSections)
+            section.scrub();
+        providerSections.clear();
+    }
 };

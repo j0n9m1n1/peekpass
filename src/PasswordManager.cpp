@@ -169,7 +169,7 @@ bool PasswordManager::unlockWithPassword(const QString& password, QString* error
             *errorMessage = I18n::translate(
                 "PasswordManager",
                 "Proton Pass session unlocking is not available in peekpass yet. Log in again instead.",
-                "Proton Pass 세션 잠금 해제는 아직 peekpass에서 지원하지 않음. 다시 로그인해야 함.");
+                "Proton Pass 세션 잠금 해제는 아직 peekpass에서 지원하지 않습니다. 다시 로그인하세요.");
         }
         return false;
     }

@@ -5,8 +5,6 @@
 #include <QProcessEnvironment>
 #include "VaultTypes.h"
 
-class QWidget;
-
 class BwClient
 {
 public:
@@ -39,9 +37,6 @@ public:
     StatusInfo statusInfo(QString* errorMessage = nullptr) const;
     VaultStatus status(QString* errorMessage = nullptr) const;
     bool configureServer(const QString& serverUrl, QString* errorMessage = nullptr);
-    bool ensureSession(QWidget* parent, QString* errorMessage = nullptr);
-    bool login(QWidget* parent, QString* errorMessage = nullptr);
-    bool unlock(QWidget* parent, QString* errorMessage = nullptr);
     bool loginWithCredentials(const QString& serverUrl,
         const QString& email,
         const QString& password,
@@ -54,7 +49,6 @@ public:
     bool sync(QString* errorMessage = nullptr) const;
 
     QVector<VaultItem> listItems(QString* errorMessage = nullptr) const;
-    QVector<VaultItem> search(const QString& keyword, QString* errorMessage = nullptr) const;
     QString getPassword(const QString& itemId, QString* errorMessage = nullptr) const;
     QString getUsername(const QString& itemId, QString* errorMessage = nullptr) const;
     QString getTotp(const QString& itemId, QString* errorMessage = nullptr) const;

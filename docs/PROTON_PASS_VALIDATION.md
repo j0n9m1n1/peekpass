@@ -19,11 +19,11 @@ Never add screenshots, logs, fixture files, or command output containing real cr
 - [ ] Enter any Pass extra password directly in the CLI, then click Check connection in peekpass.
 - [ ] Confirm peekpass never requests the Proton account password or creates credential files.
 - [ ] Restart peekpass and confirm the CLI-owned session is detected without another login.
-- [ ] Confirm every accessible vault contributes items to search results.
+- [ ] Confirm every accessible vault contributes active items to search results and trashed items are excluded.
 - [ ] Search by title, username/email, URL, notes, and a non-sensitive custom field.
 - [ ] Copy username, password, and TOTP using both shortcut presets.
 - [ ] Confirm sensitive clipboard content is cleared after 30 seconds and excluded from clipboard history.
-- [ ] Open details for each available item type and verify sensitive fields remain concealed until copied.
+- [ ] Open details for each available item type and verify sensitive fields remain concealed by default, can be toggled via Show/Hide or copied directly, and display a live TOTP countdown when configured.
 - [ ] Run manual sync and confirm the current vault contents are reloaded.
 - [ ] Use the tray lock action and confirm it signs out of Proton Pass CLI and clears cached items.
 - [ ] Lock or log out using the CLI outside peekpass, then try copying a previously cached password; verify the copy is rejected and cached data is cleared.

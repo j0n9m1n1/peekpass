@@ -120,6 +120,32 @@ int main(int argc, char* argv[])
           {"name":"Secondary OTP","content":{"Totp":"otpauth://totp/Secondary?secret=AAAA"}}
         ]
       }
+    },
+    {
+      "id": "trashed-item-2",
+      "share_id": "share-1",
+      "vault_id": "vault-1",
+      "state": "Trashed",
+      "flags": [],
+      "create_time": "2026-08-01T12:00:00",
+      "modify_time": "2026-08-02T13:30:00",
+      "folder_id": "folder-1",
+      "content": {
+        "title": "Example Trashed Login",
+        "note": "Should not appear",
+        "item_uuid": "uuid-2",
+        "content": {
+          "Login": {
+            "email": "trash@example.com",
+            "username": "trash-user",
+            "password": "trash-password",
+            "urls": ["https://trash.example.com"],
+            "totp_uri": "",
+            "passkeys": []
+          }
+        },
+        "extra_fields": []
+      }
     }
   ]
 }

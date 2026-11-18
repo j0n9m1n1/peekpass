@@ -15,6 +15,7 @@
 #include <QUrl>
 #include <QWidget>
 
+class QAction;
 class QLabel;
 class QComboBox;
 class QGridLayout;
@@ -71,13 +72,6 @@ private:
         QString errorMessage;
     };
 
-    struct SearchResult
-    {
-        QString keyword;
-        QVector<VaultItem> items;
-        QString errorMessage;
-    };
-
     struct ItemsResult
     {
         quint64 generation = 0;
@@ -101,11 +95,9 @@ private:
     void updateWindowMask();
     void updateFooter();
     void updateAuthTexts();
-    void updateAuthHints();
     void updateWindowSize();
     void reload();
     void startSearch(const QString& keyword);
-    void handleSearchFinished();
     void startItemLoad(bool forceRefresh = false, bool quiet = false);
     void handleItemsFinished();
     QVector<VaultItem> filterCachedItems(const QString& keyword) const;
@@ -133,7 +125,7 @@ private:
     void reloadPasswordManager();
     void continuePendingPreload();
     void requestFaviconForRow(QListWidgetItem* row, const VaultItem& item);
-    void fetchFavicon(const QString& host, const QUrl& url, bool retriedHttp);
+    void fetchFavicon(const QString& host, const QUrl& url);
     void handleFaviconFinished(QNetworkReply* reply);
     void applyFaviconToVisibleRows(const QString& host, const QIcon& icon);
     void scheduleFocusLossCheck();
@@ -153,6 +145,7 @@ private:
     void moveToConfiguredPosition();
 
     QLineEdit* m_search = nullptr;
+    QAction* m_searchIconAction = nullptr;
     QPushButton* m_authBrowserLogin = nullptr;
     QProgressBar* m_busyBar = nullptr;
     QListWidget* m_list = nullptr;
@@ -177,10 +170,7 @@ private:
     QComboBox* m_authMethod = nullptr;
     QLineEdit* m_authCode = nullptr;
     QLineEdit* m_authExtraPassword = nullptr;
-    QWidget* m_authHintBar = nullptr;
-    QHBoxLayout* m_authHintLayout = nullptr;
     QLabel* m_authBusyLabel = nullptr;
-    QProgressBar* m_authBusyBar = nullptr;
     QPushButton* m_authSubmit = nullptr;
     QPushButton* m_authCancel = nullptr;
     QWidget* m_footer = nullptr;
@@ -194,7 +184,6 @@ private:
     std::shared_ptr<PasswordManager> m_passwordManager = std::make_shared<PasswordManager>();
     QFutureWatcher<PrepareResult> m_prepareWatcher;
     QFutureWatcher<AuthResult> m_authWatcher;
-    QFutureWatcher<SearchResult> m_searchWatcher;
     QFutureWatcher<ItemsResult> m_itemsWatcher;
     AuthMode m_authMode = AuthMode::None;
     QString m_queuedSearchText;

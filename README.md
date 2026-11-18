@@ -36,13 +36,14 @@ This project is still early, Windows-first software.
 - Bitwarden CLI login and unlock flow.
 - Proton Pass CLI (`pass-cli`) browser sign-in and existing-session connection.
 - Startup preload so unlocked vault items are cached before the search window is opened.
-- In-memory search over item names, usernames, URIs, notes, and non-sensitive
-  provider fields.
+- In-memory search over active item names, usernames, URIs, notes, and
+  non-sensitive provider fields (trashed/deleted items are excluded).
 - Fast keyboard actions for copying username, password, TOTP, and opening details.
 - Independent, draggable item-details windows that leave quick access open.
 - Provider-aware item details for Bitwarden and Proton Pass, including logins,
   secure notes, cards, identities, SSH keys, Wi-Fi, aliases, custom sections,
-  clickable websites, and provider metadata where available.
+  show/hide secret toggles, live TOTP code and countdown timer, website open/copy
+  actions, notes copy, and formatted provider metadata where available.
 - Optional web favicon loading for search results.
 - System tray menu with open, lock, settings, and quit.
 - Settings actions to log out of the selected password manager or reset local
@@ -134,7 +135,11 @@ shown immediately instead.
 
 - `src/main.cpp` - Application startup, tray setup, and quick window wiring.
 - `src/QuickWindow.*` - Quick-access search window, login/unlock UI, result
-  list, copy actions, detail view, and favicon loading.
+  list, copy actions, and favicon loading.
+- `src/ItemDetailDialog.*` - Standalone item-details dialog with show/hide
+  secret toggles, live TOTP countdown, website open/copy actions, notes copy,
+  and provider-specific card sections.
+- `src/TotpGenerator.*` - RFC 6238 TOTP code and countdown generator.
 - `src/BwClient.*` - Bitwarden CLI wrapper for status, login, unlock, sync,
   item retrieval, sensitive field lookup, and session handling.
 - `src/ProtonPassClient.*` - Proton Pass CLI wrapper for status, login, vault
@@ -207,7 +212,7 @@ To package a local Release build with its Qt runtime and translations, run:
 .\packaging\windows\package.ps1 -QtDir C:\Qt\6.12.0\mingw_64
 ```
 
-This creates `dist/peekpass-0.3.4-win64-setup.exe` and the portable ZIP. The
+This creates `dist/peekpass-0.3.5-win64-setup.exe` and the portable ZIP. The
 script discovers Inno Setup 6 or 7 in system and per-user installation directories;
 `-IsccPath` overrides it.
 
@@ -218,8 +223,8 @@ output directories (adjust the version to match `CMakeLists.txt`):
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-  "/DAppVersion=0.3.4" `
-  "/DStageDir=$PWD\dist\peekpass-v0.3.4-win64" `
+  "/DAppVersion=0.3.5" `
+  "/DStageDir=$PWD\dist\peekpass-v0.3.5-win64" `
   "/DInstallerOutputDir=$PWD\dist" `
   ".\packaging\windows\peekpass.iss"
 ```

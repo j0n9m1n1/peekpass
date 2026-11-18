@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.22)
 
-project(peekpass VERSION 0.3.4 LANGUAGES CXX)
+project(peekpass VERSION 0.3.5 LANGUAGES CXX)
 
 include(CTest)
 
@@ -23,10 +23,14 @@ add_library(peekpass_core STATIC
     src/ProtonPassClient.h
     src/I18n.cpp
     src/I18n.h
+    src/ItemDetailDialog.cpp
+    src/ItemDetailDialog.h
     src/QuickWindow.cpp
     src/QuickWindow.h
     src/SettingsDialog.cpp
     src/SettingsDialog.h
+    src/TotpGenerator.cpp
+    src/TotpGenerator.h
     src/TranslationCatalog.cpp
     src/VaultTypes.h
     src/WinHotkey.cpp
@@ -37,9 +41,18 @@ add_library(peekpass_core STATIC
 
 target_include_directories(peekpass_core PUBLIC src)
 target_link_libraries(peekpass_core PUBLIC Qt6::Widgets Qt6::Concurrent Qt6::Network)
+target_compile_definitions(peekpass_core PUBLIC PEEKPASS_VERSION="${PROJECT_VERSION}")
+qt_add_resources(peekpass_core "peekpass_icons"
+    PREFIX "/"
+    BASE "src"
+    FILES
+        src/icons/chevron-down-dark.png
+        src/icons/chevron-down-light.png
+        src/icons/chevron-up-dark.png
+        src/icons/chevron-up-light.png
+)
 qt_add_executable(peekpass WIN32 src/main.cpp)
 target_link_libraries(peekpass PRIVATE peekpass_core)
-target_compile_definitions(peekpass PRIVATE PEEKPASS_VERSION="${PROJECT_VERSION}")
 
 set(PEEKPASS_TRANSLATIONS
     translations/peekpass_ko.ts
@@ -97,6 +110,16 @@ if(BUILD_TESTING)
         COMMAND peekpass_ui_tests "$<TARGET_FILE:peekpass_fake_pass_cli>"
     )
     set_tests_properties(quick_window PROPERTIES TIMEOUT 60 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    if(WIN32)
+        cmake_path(GET CMAKE_CXX_COMPILER PARENT_PATH PEEKPASS_COMPILER_DIR)
+        cmake_path(NATIVE_PATH PEEKPASS_COMPILER_DIR NORMALIZE PEEKPASS_COMPILER_NATIVE_DIR)
+        set_property(TEST proton_pass_client quick_window APPEND PROPERTY
+            ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<SHELL_PATH:$<TARGET_FILE_DIR:Qt6::Core>>"
+                "PATH=path_list_prepend:${PEEKPASS_COMPILER_NATIVE_DIR}"
+        )
+    endif()
 endif()
 
 install(TARGETS peekpass

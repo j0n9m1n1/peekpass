@@ -13,8 +13,8 @@ To add a language:
 translation tooling, including strings selected dynamically by password-manager
 backends.
 
-Korean is currently also supplied as an inline fallback to `I18n::translate`, so
-the app remains bilingual while `peekpass_ko.ts` is still an unfinished Linguist
-catalog. An empty generated `peekpass_ko.qm` is therefore expected until those
-catalog entries are translated and marked finished. New languages must provide
-completed `.ts` translations because they do not have an inline fallback.
+Korean is provided in `translations/peekpass_ko.ts` (compiled into
+`translations/peekpass_ko.qm` by `lrelease`) and is also supplied as an inline
+fallback to `I18n::translate` so the app remains bilingual even if `.qm` files
+are absent. New languages must provide completed `.ts` translations because they
+do not have an inline fallback.

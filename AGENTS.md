@@ -23,10 +23,11 @@ Provider-specific behavior belongs in `BwClient` or `ProtonPassClient`. UI code 
 - Global quick-access hotkey on Windows.
 - Frameless, always-on-top search window.
 - Provider-aware login and session handling.
-- In-memory vault cache and search.
+- In-memory vault cache and search over active items (trashed/deleted items excluded).
 - Password, username, and TOTP copy actions.
 - Sensitive clipboard clearing after 30 seconds.
-- Item details, tray menu, settings, startup registration, and English/Korean UI.
+- Standalone item details dialog (`ItemDetailDialog`) with show/hide secret toggles, live TOTP code and countdown (`TotpGenerator`), website open/copy actions, and notes copy.
+- Tray menu, settings, startup registration, and English/Korean UI.
 
 ## Security Requirements
 

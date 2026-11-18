@@ -371,6 +371,9 @@ VaultItem itemFromPayload(const QJsonObject& source, const QString& fallbackShar
     result.folderId = objectField(item, QStringLiteral("folder_id"));
     result.creationDate = objectField(item, QStringLiteral("create_time"));
     result.revisionDate = objectField(item, QStringLiteral("modify_time"));
+    const QString state = objectField(item, QStringLiteral("state")).trimmed();
+    if (!state.isEmpty() && state.compare(QStringLiteral("Active"), Qt::CaseInsensitive) != 0)
+        result.deletedDate = state;
     result.notes = objectField(itemData, QStringLiteral("note"));
 
     if (variant.compare(QStringLiteral("Login"), Qt::CaseInsensitive) == 0) {
@@ -547,7 +550,7 @@ bool ProtonPassClient::startLogin(QString* errorMessage) const
     const QString executable = QStandardPaths::findExecutable(program());
     if (executable.isEmpty()) {
         setError(errorMessage, uiText("Proton Pass CLI was not found. Set its location in Settings.",
-            "Proton Pass CLI를 찾지 못함. 설정에서 실행 파일 위치를 지정해라."));
+            "Proton Pass CLI를 찾지 못했습니다. 설정에서 실행 파일 위치를 지정하세요."));
         return false;
     }
     QProcess process;
@@ -563,7 +566,7 @@ bool ProtonPassClient::startLogin(QString* errorMessage) const
     });
 #else
     setError(errorMessage, uiText("Run pass-cli login in a terminal, then check the connection here.",
-        "터미널에서 pass-cli login 실행 후 여기서 연결 확인을 눌러라."));
+        "터미널에서 pass-cli login을 실행한 뒤 여기서 연결 확인을 누르세요."));
     return false;
 #endif
     const bool started = process.startDetached();
@@ -648,7 +651,7 @@ QVector<VaultItem> ProtonPassClient::listItems(QString* errorMessage) const
 
         for (const QJsonValue& itemValue : itemDocument.object().value(QStringLiteral("items")).toArray()) {
             VaultItem item = vaultItemFromObject(itemValue.toObject(), shareId);
-            if (!item.id.isEmpty() && !item.name.isEmpty())
+            if (!item.id.isEmpty() && !item.name.isEmpty() && item.deletedDate.isEmpty())
                 items.push_back(std::move(item));
         }
     }

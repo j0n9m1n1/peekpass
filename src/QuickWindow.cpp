@@ -3,7 +3,9 @@
 #include "AppSettings.h"
 #include "BwClient.h"
 #include "I18n.h"
+#include "ItemDetailDialog.h"
 #include "SettingsDialog.h"
+#include "TotpGenerator.h"
 
 #include <QAbstractItemView>
 #include <QAction>
@@ -11,6 +13,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QCryptographicHash>
+#include <QCursor>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDialog>
@@ -60,41 +63,8 @@ namespace
 {
 constexpr int ItemIdRole = Qt::UserRole;
 constexpr int UsernameRole = Qt::UserRole + 1;
-constexpr int PasswordRole = Qt::UserRole + 2;
-constexpr int TotpRole = Qt::UserRole + 3;
-constexpr int FaviconHostRole = Qt::UserRole + 4;
+constexpr int FaviconHostRole = Qt::UserRole + 2;
 constexpr int MaxRecentItems = 30;
-
-struct TotpSpec
-{
-    QByteArray secret;
-    int digits = 6;
-    int period = 30;
-    QCryptographicHash::Algorithm algorithm = QCryptographicHash::Sha1;
-};
-
-QLabel* makeKeycap(const QString& text, QWidget* parent)
-{
-    auto* label = new QLabel(text, parent);
-    label->setObjectName("keycapLabel");
-    label->setAlignment(Qt::AlignCenter);
-    label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    return label;
-}
-
-QStringList keySequenceParts(const QKeySequence& sequence)
-{
-    const QString text = sequence.toString(QKeySequence::NativeText);
-    QStringList parts = text.split('+', Qt::SkipEmptyParts);
-
-    if (parts.isEmpty())
-        parts.push_back(text);
-
-    for (QString& part : parts)
-        part = part.trimmed();
-
-    return parts;
-}
 
 QString uiText(const char* ko, const char* en)
 {
@@ -104,6 +74,24 @@ QString uiText(const char* ko, const char* en)
 bool isLightTheme()
 {
     return AppSettings::theme() == QStringLiteral("light");
+}
+
+QIcon makeSearchIcon()
+{
+    QPixmap pixmap(20, 20);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    const QColor strokeColor = isLightTheme() ? QColor("#57606a") : QColor("#aeb4bf");
+    QPen pen(strokeColor, 1.75, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(QRectF(3.5, 3.5, 9.5, 9.5));
+    painter.drawLine(QPointF(11.8, 11.8), QPointF(16.2, 16.2));
+
+    return QIcon(pixmap);
 }
 
 QString quickWindowStyle(int radius)
@@ -199,6 +187,31 @@ QString quickWindowStyle(int radius)
             selection-color: #ffffff;
             min-height: 24px;
         }
+        #authPanel QComboBox {
+            padding-right: 26px;
+        }
+        #authPanel QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 22px;
+            border-left: 1px solid #3a3f46;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            background: transparent;
+        }
+        #authPanel QComboBox::down-arrow {
+            image: url(:/icons/chevron-down-dark.png);
+            width: 12px;
+            height: 8px;
+        }
+        #authPanel QComboBox QAbstractItemView {
+            background: #15171a;
+            color: #f1f3f4;
+            border: 1px solid #3a3f46;
+            selection-background-color: #1f8cff;
+            selection-color: #ffffff;
+            outline: 0;
+        }
         #authPanel QLineEdit:focus, #authPanel QComboBox:focus {
             border: 1px solid #1f8cff;
         }
@@ -259,6 +272,7 @@ QString quickWindowStyle(int radius)
     if (!isLightTheme())
         return style;
 
+    style.replace(QStringLiteral(":/icons/chevron-down-dark.png"), QStringLiteral(":/icons/chevron-down-light.png"));
     style.replace(QStringLiteral("rgba(255, 255, 255, 35)"), QStringLiteral("rgba(0, 0, 0, 35)"));
     style.replace(QStringLiteral("#202124"), QStringLiteral("#f8f9fa"));
     style.replace(QStringLiteral("#0b0c0f"), QStringLiteral("#d0d7de"));
@@ -328,233 +342,6 @@ QString menuStyle()
         }
     )");
 }
-
-QString detailDialogStyle()
-{
-    if (isLightTheme()) {
-        return QStringLiteral(R"(
-            QDialog {
-                background: #f8f9fa;
-                border: 1px solid #d0d7de;
-                color: #24292f;
-            }
-            QLabel {
-                color: #24292f;
-            }
-            #detailHeader {
-                font-size: 17px;
-                font-weight: 800;
-            }
-            #detailSubtle {
-                color: #57606a;
-                font-size: 12px;
-            }
-            #detailCard {
-                background: #ffffff;
-                border: 1px solid #d0d7de;
-                border-radius: 8px;
-            }
-            #detailSectionTitle {
-                color: #111827;
-                font-size: 13px;
-                font-weight: 800;
-            }
-            #detailLabel {
-                color: #57606a;
-                font-size: 12px;
-                font-weight: 700;
-            }
-            #detailValue {
-                color: #111827;
-                font-size: 13px;
-                font-weight: 700;
-            }
-            #detailLoading {
-                color: #b42318;
-                font-size: 12px;
-            }
-            QScrollArea {
-                background: transparent;
-                border: 0;
-            }
-            QScrollArea > QWidget > QWidget {
-                background: transparent;
-            }
-            QPlainTextEdit {
-                background: #ffffff;
-                color: #24292f;
-                border: 1px solid #d0d7de;
-                border-radius: 6px;
-                padding: 8px;
-                selection-background-color: #0969da;
-                selection-color: #ffffff;
-                font-family: Consolas, "Cascadia Mono", monospace;
-                font-size: 12px;
-            }
-            QProgressBar {
-                background: rgba(0, 0, 0, 35);
-                border: 0;
-                border-radius: 1px;
-                max-height: 3px;
-            }
-            QProgressBar::chunk {
-                background: #218bff;
-                border-radius: 1px;
-            }
-            QPushButton {
-                background: #0969da;
-                color: #ffffff;
-                border: 1px solid #218bff;
-                border-radius: 6px;
-                padding: 6px 10px;
-                font-weight: 700;
-            }
-            QPushButton:hover {
-                background: #0757b8;
-            }
-            QPushButton#detailCloseButton {
-                background: #f3f4f6;
-                color: #24292f;
-                border-color: #d0d7de;
-            }
-            QPushButton#detailCloseButton:hover {
-                background: #eaeef2;
-            }
-        )");
-    }
-
-    return QStringLiteral(R"(
-        QDialog {
-            background: #202124;
-            border: 1px solid #0b0c0f;
-            color: #e8eaed;
-        }
-        QLabel {
-            color: #e8eaed;
-        }
-        #detailHeader {
-            font-size: 17px;
-            font-weight: 800;
-        }
-        #detailSubtle {
-            color: #c5cbd3;
-            font-size: 12px;
-        }
-        #detailCard {
-            background: #15171a;
-            border: 1px solid #3a3f46;
-            border-radius: 8px;
-        }
-        #detailSectionTitle {
-            color: #ffffff;
-            font-size: 13px;
-            font-weight: 800;
-        }
-        #detailLabel {
-            color: #c5cbd3;
-            font-size: 12px;
-            font-weight: 700;
-        }
-        #detailValue {
-            color: #ffffff;
-            font-size: 13px;
-            font-weight: 700;
-        }
-        #detailLoading {
-            color: #f0c7d2;
-            font-size: 12px;
-        }
-        QScrollArea {
-            background: transparent;
-            border: 0;
-        }
-        QScrollArea > QWidget > QWidget {
-            background: transparent;
-        }
-        QPlainTextEdit {
-            background: #101214;
-            color: #f1f3f4;
-            border: 1px solid #3a3f46;
-            border-radius: 6px;
-            padding: 8px;
-            selection-background-color: #1f8cff;
-            selection-color: #ffffff;
-            font-family: Consolas, "Cascadia Mono", monospace;
-            font-size: 12px;
-        }
-        QProgressBar {
-            background: rgba(255, 255, 255, 35);
-            border: 0;
-            border-radius: 1px;
-            max-height: 3px;
-        }
-        QProgressBar::chunk {
-            background: #49a0ff;
-            border-radius: 1px;
-        }
-        QPushButton {
-            background: #1f72c7;
-            color: #ffffff;
-            border: 1px solid #49a0ff;
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-weight: 700;
-        }
-        QPushButton:hover {
-            background: #2484e7;
-        }
-        QPushButton#detailCloseButton {
-            background: #2f343a;
-            border-color: #4b5563;
-        }
-        QPushButton#detailCloseButton:hover {
-            background: #3a4048;
-        }
-    )");
-}
-
-class DraggableDialog : public QDialog
-{
-public:
-    explicit DraggableDialog(QWidget* parent = nullptr)
-        : QDialog(parent)
-    {
-    }
-
-protected:
-    void mousePressEvent(QMouseEvent* event) override
-    {
-        if (event->button() == Qt::LeftButton) {
-            m_dragging = true;
-            m_dragOffset = event->globalPosition().toPoint() - frameGeometry().topLeft();
-            event->accept();
-            return;
-        }
-
-        QDialog::mousePressEvent(event);
-    }
-
-    void mouseMoveEvent(QMouseEvent* event) override
-    {
-        if (m_dragging && event->buttons().testFlag(Qt::LeftButton)) {
-            move(event->globalPosition().toPoint() - m_dragOffset);
-            event->accept();
-            return;
-        }
-
-        QDialog::mouseMoveEvent(event);
-    }
-
-    void mouseReleaseEvent(QMouseEvent* event) override
-    {
-        m_dragging = false;
-        QDialog::mouseReleaseEvent(event);
-    }
-
-private:
-    bool m_dragging = false;
-    QPoint m_dragOffset;
-};
 
 QString stripTerminalControls(const QString& value)
 {
@@ -645,31 +432,6 @@ QString defaultServerUrlForMode(const QString& mode)
     return "https://vault.bitwarden.com";
 }
 
-QString maskedSecretValue(const QString& value, int visibleSuffixLength = 0)
-{
-    if (value.isEmpty())
-        return {};
-
-    if (value.size() <= visibleSuffixLength)
-        visibleSuffixLength = 0;
-
-    const int hiddenLength = value.size() - visibleSuffixLength;
-    const int maskLength = qBound(4, hiddenLength, 16);
-    QString masked(maskLength, QChar(0x2022));
-    if (visibleSuffixLength > 0)
-        masked += QStringLiteral(" ") + value.right(visibleSuffixLength);
-    return masked;
-}
-
-QGridLayout* makeDetailForm()
-{
-    auto* form = new QGridLayout;
-    form->setHorizontalSpacing(10);
-    form->setVerticalSpacing(9);
-    form->setColumnStretch(1, 1);
-    return form;
-}
-
 QString displayName(const VaultItem& item)
 {
     const QString name = item.name.isEmpty() ? uiText("(이름 없는 항목)", "(unnamed item)") : item.name;
@@ -708,38 +470,6 @@ QUrl normalizedItemUrl(const QString& value)
     return url;
 }
 
-QUrl webUrlForItemUri(const QString& value)
-{
-    const QUrl url = normalizedItemUrl(value);
-    const QString scheme = url.scheme().toLower();
-    if ((scheme != QStringLiteral("http") && scheme != QStringLiteral("https")) || url.host().isEmpty())
-        return {};
-
-    return url;
-}
-
-QString linkedWebsiteText(const QStringList& uris)
-{
-    QStringList lines;
-    for (const QString& uri : uris) {
-        const QString displayText = uri.trimmed();
-        if (displayText.isEmpty())
-            continue;
-
-        const QUrl url = webUrlForItemUri(displayText);
-        if (!url.isValid()) {
-            lines.push_back(displayText.toHtmlEscaped());
-            continue;
-        }
-
-        const QString href = QString::fromUtf8(url.toEncoded()).toHtmlEscaped();
-        lines.push_back(QStringLiteral("<a style=\"color:#6bb6ff; text-decoration:none;\" href=\"%1\">%2</a>")
-            .arg(href, displayText.toHtmlEscaped()));
-    }
-
-    return lines.join(QStringLiteral("<br>"));
-}
-
 QString faviconHostForItem(const VaultItem& item)
 {
     for (const QString& uri : item.uris) {
@@ -760,12 +490,8 @@ QUrl faviconUrlForItem(const VaultItem& item)
         if (host.isEmpty())
             continue;
 
-        QString scheme = sourceUrl.scheme().toLower();
-        if (scheme != QStringLiteral("http") && scheme != QStringLiteral("https"))
-            scheme = QStringLiteral("https");
-
         QUrl faviconUrl;
-        faviconUrl.setScheme(scheme);
+        faviconUrl.setScheme(QStringLiteral("https"));
         faviconUrl.setHost(host);
         faviconUrl.setPath(QStringLiteral("/favicon.ico"));
         return faviconUrl;
@@ -842,124 +568,6 @@ QString shortcutMarkup(const QString& shortcut, const QString& label, const QStr
     return QStringLiteral("<span style=\"color:#aeb4bf;font-weight:800;\">%1</span><span style=\"color:%3;font-weight:650;\"> %2</span>")
         .arg(shortcut.toHtmlEscaped(), label.toHtmlEscaped(), effectiveLabelColor)
         .replace(QStringLiteral("#aeb4bf"), shortcutColor);
-}
-
-QByteArray decodeBase32(const QString& input, bool* ok)
-{
-    QByteArray output;
-    quint32 buffer = 0;
-    int bitsLeft = 0;
-    bool valid = true;
-
-    for (QChar ch : input.trimmed().toUpper()) {
-        if (ch == QLatin1Char('='))
-            break;
-        if (ch.isSpace() || ch == QLatin1Char('-'))
-            continue;
-
-        int value = -1;
-        if (ch >= QLatin1Char('A') && ch <= QLatin1Char('Z'))
-            value = ch.unicode() - 'A';
-        else if (ch >= QLatin1Char('2') && ch <= QLatin1Char('7'))
-            value = 26 + ch.unicode() - '2';
-
-        if (value < 0) {
-            valid = false;
-            break;
-        }
-
-        buffer = (buffer << 5) | static_cast<quint32>(value);
-        bitsLeft += 5;
-        if (bitsLeft >= 8) {
-            output.append(static_cast<char>((buffer >> (bitsLeft - 8)) & 0xff));
-            bitsLeft -= 8;
-            buffer &= bitsLeft == 0 ? 0 : ((1u << bitsLeft) - 1u);
-        }
-    }
-
-    if (ok)
-        *ok = valid && !output.isEmpty();
-    return output;
-}
-
-QCryptographicHash::Algorithm totpAlgorithm(const QString& value)
-{
-    const QString normalized = value.trimmed().toUpper();
-    if (normalized == "SHA256")
-        return QCryptographicHash::Sha256;
-    if (normalized == "SHA512")
-        return QCryptographicHash::Sha512;
-    return QCryptographicHash::Sha1;
-}
-
-TotpSpec parseTotpSpec(const QString& value, QString* errorMessage)
-{
-    QString secretText = value.trimmed();
-    TotpSpec spec;
-
-    if (secretText.startsWith(QStringLiteral("otpauth://"), Qt::CaseInsensitive)) {
-        const QUrl url(secretText);
-        const QUrlQuery query(url);
-        secretText = query.queryItemValue(QStringLiteral("secret"));
-        if (query.hasQueryItem(QStringLiteral("digits")))
-            spec.digits = qBound(4, query.queryItemValue(QStringLiteral("digits")).toInt(), 10);
-        if (query.hasQueryItem(QStringLiteral("period")))
-            spec.period = qBound(5, query.queryItemValue(QStringLiteral("period")).toInt(), 300);
-        spec.algorithm = totpAlgorithm(query.queryItemValue(QStringLiteral("algorithm")));
-    }
-
-    bool ok = false;
-    spec.secret = decodeBase32(secretText, &ok);
-    if (!ok && errorMessage)
-        *errorMessage = uiText("TOTP secret을 해석하지 못했습니다.", "Could not parse the TOTP secret.");
-
-    return spec;
-}
-
-QString generateTotpCode(const QString& value, QString* errorMessage)
-{
-    if (value.trimmed().isEmpty()) {
-        if (errorMessage)
-            *errorMessage = uiText("이 항목에는 TOTP가 없습니다.", "This item has no TOTP.");
-        return {};
-    }
-
-    const TotpSpec spec = parseTotpSpec(value, errorMessage);
-    if (spec.secret.isEmpty())
-        return {};
-
-    const quint64 counter = static_cast<quint64>(QDateTime::currentSecsSinceEpoch() / spec.period);
-    QByteArray message(8, '\0');
-    for (int index = 7; index >= 0; --index)
-        message[7 - index] = static_cast<char>((counter >> (index * 8)) & 0xff);
-
-    const QByteArray hmac = QMessageAuthenticationCode::hash(message, spec.secret, spec.algorithm);
-    if (hmac.size() < 20) {
-        if (errorMessage)
-            *errorMessage = uiText("TOTP 코드를 만들지 못했습니다.", "Could not generate the TOTP code.");
-        return {};
-    }
-
-    const int offset = static_cast<unsigned char>(hmac.at(hmac.size() - 1)) & 0x0f;
-    if (offset + 3 >= hmac.size()) {
-        if (errorMessage)
-            *errorMessage = uiText("TOTP 코드를 만들지 못했습니다.", "Could not generate the TOTP code.");
-        return {};
-    }
-
-    const quint32 binary =
-        ((static_cast<unsigned char>(hmac.at(offset)) & 0x7f) << 24)
-        | ((static_cast<unsigned char>(hmac.at(offset + 1)) & 0xff) << 16)
-        | ((static_cast<unsigned char>(hmac.at(offset + 2)) & 0xff) << 8)
-        | (static_cast<unsigned char>(hmac.at(offset + 3)) & 0xff);
-
-    quint32 modulo = 1;
-    for (int index = 0; index < spec.digits; ++index)
-        modulo *= 10;
-
-    if (errorMessage)
-        errorMessage->clear();
-    return QStringLiteral("%1").arg(binary % modulo, spec.digits, 10, QLatin1Char('0'));
 }
 
 QString itemSearchText(const VaultItem& item)
@@ -1045,7 +653,7 @@ QuickWindow::QuickWindow(QWidget* parent)
     m_search->setObjectName("searchEdit");
     m_search->setClearButtonEnabled(true);
     m_search->setPlaceholderText(uiText("비밀번호 검색", "Password search"));
-    m_search->addAction(QIcon::fromTheme("edit-find"), QLineEdit::LeadingPosition);
+    m_searchIconAction = m_search->addAction(makeSearchIcon(), QLineEdit::LeadingPosition);
     m_search->installEventFilter(this);
 
     m_list = new QListWidget(this);
@@ -1164,7 +772,7 @@ QuickWindow::QuickWindow(QWidget* parent)
             setStatus(error);
             return;
         }
-        setStatus(uiText("열린 CLI 창의 링크로 브라우저 로그인을 마친 뒤 연결 확인을 눌러라.",
+        setStatus(uiText("열린 CLI 창의 링크로 브라우저 로그인을 마친 뒤 연결 확인을 누르세요.",
             "Complete browser sign-in using the link in the CLI window, then check the connection."));
     });
 
@@ -1191,23 +799,9 @@ QuickWindow::QuickWindow(QWidget* parent)
     authForm->addWidget(m_authExtraPassword, 8, 1);
     authForm->setColumnStretch(1, 1);
 
-    m_authHintBar = new QWidget(m_authPanel);
-    m_authHintBar->setObjectName("authHintBar");
-    m_authHintBar->setVisible(false);
-    m_authHintLayout = new QHBoxLayout(m_authHintBar);
-    m_authHintLayout->setContentsMargins(0, 0, 0, 0);
-    m_authHintLayout->setSpacing(5);
-
     m_authBusyLabel = new QLabel(m_authPanel);
     m_authBusyLabel->setObjectName("authBusyLabel");
     m_authBusyLabel->setVisible(false);
-
-    m_authBusyBar = new QProgressBar(m_authPanel);
-    m_authBusyBar->setObjectName("busyBar");
-    m_authBusyBar->setRange(0, 0);
-    m_authBusyBar->setTextVisible(false);
-    m_authBusyBar->setFixedHeight(3);
-    m_authBusyBar->setVisible(false);
 
     auto* authButtons = new QHBoxLayout;
     authButtons->setContentsMargins(0, 0, 0, 0);
@@ -1346,8 +940,13 @@ QuickWindow::QuickWindow(QWidget* parent)
 
     auto* copyUsernameShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this);
     connect(copyUsernameShortcut, &QShortcut::activated, this, [this] {
-        if (m_authMode == AuthMode::None)
-            copyUsername(currentItem());
+        if (m_authMode != AuthMode::None)
+            return;
+        if (m_search && m_search->hasFocus() && m_search->hasSelectedText()) {
+            m_search->copy();
+            return;
+        }
+        copyUsername(currentItem());
     });
 
     auto* copyPasswordShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this);
@@ -1455,10 +1054,6 @@ QuickWindow::QuickWindow(QWidget* parent)
         continuePendingPreload();
     });
 
-    connect(&m_searchWatcher, &QFutureWatcher<SearchResult>::finished, this, [this] {
-        handleSearchFinished();
-    });
-
     connect(&m_itemsWatcher, &QFutureWatcher<ItemsResult>::finished, this, [this] {
         handleItemsFinished();
         continuePendingPreload();
@@ -1489,6 +1084,8 @@ void QuickWindow::clearVaultCache()
     closeDetailWindows();
     m_refreshTimer.stop();
     m_itemsReady = false;
+    for (VaultItem& item : m_cachedItems)
+        item.scrub();
     m_cachedItems.clear();
     m_recentItemIds.clear();
     m_faviconCache.clear();
@@ -1622,6 +1219,8 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event)
             } else if (modifiers.testFlag(Qt::AltModifier)) {
                 copyTotp(currentItem());
             } else {
+                if (watched == m_search && m_search->hasSelectedText())
+                    return false;
                 copyUsername(currentItem());
             }
             return true;
@@ -1942,7 +1541,6 @@ void QuickWindow::resetApplicationData()
     m_debounce.stop();
     m_prepareWatcher.cancel();
     m_authWatcher.cancel();
-    m_searchWatcher.cancel();
     m_itemsWatcher.cancel();
 
     hideAuthPanel();
@@ -2048,7 +1646,15 @@ void QuickWindow::applyStyle()
         .arg(keycapFontSize)
         .arg(rowMinHeight));
     setStyleSheet(style);
+    if (m_searchIconAction)
+        m_searchIconAction->setIcon(makeSearchIcon());
     updateWindowMask();
+
+    const QWidgetList topLevelWidgets = QApplication::topLevelWidgets();
+    for (QWidget* widget : topLevelWidgets) {
+        if (auto* detailDialog = dynamic_cast<ItemDetailDialog*>(widget))
+            detailDialog->applyThemeStyle();
+    }
 }
 
 void QuickWindow::updateWindowMask()
@@ -2118,50 +1724,31 @@ void QuickWindow::updateAuthTexts()
     m_authCode->setPlaceholderText(uiText("필요한 경우에만 입력", "Only if required"));
     m_authExtraPassword->setPlaceholderText(uiText("설정한 경우에만 입력", "Only if configured"));
     m_authCancel->setText(uiText("취소", "Cancel"));
-    updateAuthHints();
 
     if (m_authMode == AuthMode::Unlock && !protonPass) {
-        m_authTitle->setText(protonPass ? uiText("Proton Pass 잠금 해제", "Unlock Proton Pass")
-                                        : uiText("Bitwarden 잠금 해제", "Unlock Bitwarden"));
+        m_authTitle->setText(uiText("Bitwarden 잠금 해제", "Unlock Bitwarden"));
         m_authNote->setText(uiText("마스터 비밀번호를 입력하면 이 창에서 바로 검색을 시작할 수 있습니다.",
                                    "Enter your master password to start searching in this window."));
         m_authSubmit->setText(uiText("잠금 해제", "Unlock"));
         return;
     }
 
+    if (m_authMode == AuthMode::Unlock && protonPass) {
+        m_authTitle->setText(uiText("Proton Pass 잠금 해제", "Unlock Proton Pass"));
+        m_authNote->setText(uiText("Proton Pass CLI 세션이 잠겨 있습니다. CLI에서 잠금을 해제하거나 브라우저 로그인을 다시 수행한 뒤 연결 확인을 누르세요.",
+                                   "The Proton Pass CLI session is locked. Unlock it in the CLI or sign in again, then check the connection."));
+        m_authSubmit->setText(uiText("연결 확인", "Check connection"));
+        return;
+    }
+
     m_authTitle->setText(protonPass ? uiText("Proton Pass 로그인", "Proton Pass Login")
                                     : uiText("Bitwarden 로그인", "Bitwarden Login"));
     m_authNote->setText(protonPass
-            ? uiText("브라우저 로그인을 누르면 CLI 창이 열림. 표시된 링크로 로그인을 마친 뒤 연결 확인을 눌러라. 이미 로그인했다면 연결 확인만 누르면 됨. 잠긴 세션은 CLI에서 잠금 해제해야 함.",
+            ? uiText("브라우저 로그인을 누르면 CLI 창이 열립니다. 표시된 링크로 로그인을 마친 뒤 연결 확인을 누르세요. 이미 로그인되어 있다면 연결 확인만 누르면 됩니다. 잠긴 세션은 CLI에서 잠금 해제하세요.",
                      "Browser sign-in opens a CLI window. Follow its link, finish signing in, then check the connection. Already signed in? Just check the connection. Unlock locked sessions in the CLI.")
             : uiText("처음 사용하는 경우 Bitwarden CLI 계정 로그인이 먼저 필요합니다.",
                      "First use requires logging in to your Bitwarden CLI account."));
     m_authSubmit->setText(protonPass ? uiText("연결 확인", "Check connection") : uiText("로그인", "Log in"));
-}
-
-void QuickWindow::updateAuthHints()
-{
-    if (!m_authHintLayout)
-        return;
-
-    while (QLayoutItem* item = m_authHintLayout->takeAt(0)) {
-        if (QWidget* widget = item->widget())
-            widget->deleteLater();
-        delete item;
-    }
-
-    const auto addText = [this](const QString& text) {
-        auto* label = new QLabel(text, m_authHintBar);
-        label->setObjectName("footerText");
-        label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-        label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-        m_authHintLayout->addWidget(label);
-    };
-
-    m_authHintLayout->addWidget(makeKeycap("Esc", m_authHintBar));
-    addText(uiText("취소", "Cancel"));
-    m_authHintLayout->addWidget(makeKeycap("Enter", m_authHintBar));
-    addText(m_authMode == AuthMode::Unlock ? uiText("잠금 해제", "Unlock") : uiText("로그인", "Log in"));
 }
 
 void QuickWindow::updateFooter()
@@ -2415,8 +2002,6 @@ void QuickWindow::startSearch(const QString& keyword)
             row->setSizeHint(QSize(0, resultRowHeight()));
             row->setData(ItemIdRole, item.id);
             row->setData(UsernameRole, item.username);
-            row->setData(PasswordRole, item.password);
-            row->setData(TotpRole, item.totp);
             row->setData(FaviconHostRole, faviconHostForItem(item));
             if (AppSettings::showResultIcons()) {
                 row->setIcon(makeResultIcon(item));
@@ -2451,10 +2036,6 @@ void QuickWindow::startSearch(const QString& keyword)
     updateWindowSize();
 }
 
-void QuickWindow::handleSearchFinished()
-{
-}
-
 void QuickWindow::startItemLoad(bool forceRefresh, bool quiet)
 {
     if ((!forceRefresh && m_itemsReady) || m_itemsWatcher.isRunning())
@@ -2479,7 +2060,7 @@ void QuickWindow::startItemLoad(bool forceRefresh, bool quiet)
         result.generation = generation;
         if (manager->statusInfo(&result.errorMessage).status != PasswordManager::VaultStatus::Unlocked) {
             if (result.errorMessage.isEmpty())
-                result.errorMessage = QStringLiteral("Vault session is locked or signed out.");
+                result.errorMessage = uiText("보관함 세션이 잠겨 있거나 로그아웃되었습니다.", "Vault session is locked or signed out.");
             return result;
         }
         if (forceRefresh) {
@@ -2522,6 +2103,8 @@ void QuickWindow::handleItemsFinished()
         return;
     }
 
+    for (VaultItem& item : m_cachedItems)
+        item.scrub();
     m_cachedItems = result.items;
     m_itemsReady = true;
     updateAutoSyncTimer();
@@ -2649,7 +2232,7 @@ QString QuickWindow::totpCodeForItem(const QString& itemId, QString* errorMessag
 {
     const VaultItem* cached = cachedItemById(itemId);
     if (cached && !cached->totp.isEmpty()) {
-        const QString code = generateTotpCode(cached->totp, errorMessage);
+        const QString code = TotpGenerator::generateTotpCode(cached->totp, errorMessage);
         if (!code.isEmpty())
             return code;
     }
@@ -2795,6 +2378,8 @@ void QuickWindow::handlePrepareFinished()
         return;
     case PasswordManager::VaultStatus::Unlocked:
         if (m_itemsReady) {
+            const bool detailWindowActive = QApplication::activeWindow()
+                && QApplication::activeWindow()->property("peekpassDetailWindow").toBool();
             if (!preloading) {
                 hideAuthPanel();
                 m_search->setEnabled(true);
@@ -2802,7 +2387,8 @@ void QuickWindow::handlePrepareFinished()
                     restorePreservedSearch();
                 else
                     startSearch(m_search->text());
-                m_search->setFocus();
+                if (!detailWindowActive)
+                    m_search->setFocus();
             }
             auto action = std::move(m_pendingVaultAction);
             m_pendingVaultAction = {};
@@ -2976,9 +2562,6 @@ void QuickWindow::setBusy(bool busy, const QString& message)
         m_authBusyLabel->setVisible(busy && authBusy && !message.isEmpty());
     }
 
-    if (m_authBusyBar)
-        m_authBusyBar->setVisible(false);
-
     if (m_busyBar) {
         m_busyBar->setVisible(busy);
         m_busyBar->setGeometry(0, height() - m_busyBar->height(), width(), m_busyBar->height());
@@ -3071,10 +2654,10 @@ void QuickWindow::requestFaviconForRow(QListWidgetItem* row, const VaultItem& it
         return;
 
     m_pendingFavicons.insert(host);
-    fetchFavicon(host, url, false);
+    fetchFavicon(host, url);
 }
 
-void QuickWindow::fetchFavicon(const QString& host, const QUrl& url, bool retriedHttp)
+void QuickWindow::fetchFavicon(const QString& host, const QUrl& url)
 {
     if (!m_faviconManager || host.isEmpty() || !url.isValid())
         return;
@@ -3082,11 +2665,10 @@ void QuickWindow::fetchFavicon(const QString& host, const QUrl& url, bool retrie
     QNetworkRequest request(url);
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
     request.setTransferTimeout(2500);
-    request.setRawHeader("User-Agent", "peekpass/0.1");
+    request.setRawHeader("User-Agent", QByteArrayLiteral("peekpass/" PEEKPASS_VERSION));
 
     QNetworkReply* reply = m_faviconManager->get(request);
     reply->setProperty("peekpassHost", host);
-    reply->setProperty("peekpassRetriedHttp", retriedHttp);
 }
 
 void QuickWindow::handleFaviconFinished(QNetworkReply* reply)
@@ -3095,8 +2677,6 @@ void QuickWindow::handleFaviconFinished(QNetworkReply* reply)
         return;
 
     const QString host = reply->property("peekpassHost").toString();
-    const bool retriedHttp = reply->property("peekpassRetriedHttp").toBool();
-    const QUrl requestUrl = reply->url();
 
     if (!AppSettings::showResultIcons() || !AppSettings::fetchFaviconsFromWeb()) {
         m_pendingFavicons.remove(host);
@@ -3107,14 +2687,6 @@ void QuickWindow::handleFaviconFinished(QNetworkReply* reply)
     const QVariant statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     const bool httpOk = !statusCode.isValid() || statusCode.toInt() < 400;
     const bool ok = reply->error() == QNetworkReply::NoError && httpOk;
-
-    if (!ok && !retriedHttp && requestUrl.scheme() == QStringLiteral("https")) {
-        QUrl httpUrl = requestUrl;
-        httpUrl.setScheme(QStringLiteral("http"));
-        reply->deleteLater();
-        fetchFavicon(host, httpUrl, true);
-        return;
-    }
 
     m_pendingFavicons.remove(host);
 
@@ -3285,6 +2857,8 @@ void QuickWindow::handleAuthFinished()
     ++m_vaultGeneration;
     m_authCode->clear();
     m_itemsReady = false;
+    for (VaultItem& item : m_cachedItems)
+        item.scrub();
     m_cachedItems.clear();
     m_refreshTimer.stop();
     m_queuedSearchText.clear();
@@ -3303,11 +2877,14 @@ void QuickWindow::copyPassword(QListWidgetItem* item)
 
     QString errorMessage;
     const QString itemId = item->data(ItemIdRole).toString();
-    QString password = item->data(PasswordRole).toString();
+    QString password;
+    if (const VaultItem* cachedItem = cachedItemById(itemId))
+        password = cachedItem->password;
     if (password.isEmpty())
         password = m_passwordManager->getPassword(itemId, &errorMessage);
 
     if (!errorMessage.isEmpty()) {
+        scrubSecretString(password);
         setStatus(errorMessage);
         return;
     }
@@ -3315,6 +2892,7 @@ void QuickWindow::copyPassword(QListWidgetItem* item)
     if (!password.isEmpty()) {
         recordRecentItem(itemId);
         copyTextAndHide(password, true);
+        scrubSecretString(password);
     }
 }
 
@@ -3398,6 +2976,16 @@ void QuickWindow::showItemDetails(QListWidgetItem* item)
     }
     recordRecentItem(itemId);
 
+    for (QWidget* widget : QApplication::topLevelWidgets()) {
+        if (widget && widget->property("peekpassDetailWindow").toBool()
+            && widget->property("peekpassItemId").toString() == itemId) {
+            widget->show();
+            widget->raise();
+            widget->activateWindow();
+            return;
+        }
+    }
+
     const QString fallbackTitle = item->text();
     const quint64 generation = m_vaultGeneration;
     const VaultItem* cachedItem = cachedItemById(itemId);
@@ -3405,6 +2993,9 @@ void QuickWindow::showItemDetails(QListWidgetItem* item)
     const PasswordManager::ItemDetails cachedDetails = hasCachedDetails
         ? PasswordManager::detailsFromVaultItem(*cachedItem)
         : PasswordManager::ItemDetails();
+    const QIcon itemIcon = !item->icon().isNull()
+        ? item->icon()
+        : (cachedItem ? makeResultIcon(*cachedItem) : QIcon());
 
     struct DetailsResult
     {
@@ -3413,136 +3004,21 @@ void QuickWindow::showItemDetails(QListWidgetItem* item)
         QString errorMessage;
     };
 
-    auto* dialog = new DraggableDialog(nullptr);
-    dialog->setAttribute(Qt::WA_DeleteOnClose);
-    dialog->setProperty("peekpassDetailWindow", true);
-    dialog->setWindowTitle(uiText("상세보기", "Details"));
-    dialog->setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    dialog->resize(560, 680);
-    dialog->setStyleSheet(detailDialogStyle());
-
-    auto* root = new QVBoxLayout(dialog);
-    root->setContentsMargins(18, 16, 18, 16);
-    root->setSpacing(12);
-
-    auto* headerRow = new QHBoxLayout;
-    auto* header = new QLabel(uiText("상세보기", "Details"), dialog);
-    header->setObjectName("detailHeader");
-    header->setAttribute(Qt::WA_TransparentForMouseEvents);
-    headerRow->addWidget(header);
-    headerRow->addStretch(1);
-    root->addLayout(headerRow);
-
-    auto* scrollArea = new QScrollArea(dialog);
-    scrollArea->setWidgetResizable(true);
-    auto* content = new QWidget(scrollArea);
-    auto* contentLayout = new QVBoxLayout(content);
-    contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(12);
-    scrollArea->setWidget(content);
-    root->addWidget(scrollArea, 1);
-
-    auto* loadingLabel = new QLabel(uiText("상세 정보를 불러오는 중...", "Loading item details..."), content);
-    loadingLabel->setObjectName("detailLoading");
-    auto* loadingBar = new QProgressBar(content);
-    loadingBar->setRange(0, 0);
-    loadingBar->setTextVisible(false);
-    loadingBar->setFixedHeight(3);
-    contentLayout->addWidget(loadingLabel);
-    contentLayout->addWidget(loadingBar);
-    contentLayout->addStretch(1);
-
-    auto* footerRow = new QHBoxLayout;
-    footerRow->addStretch(1);
-    auto* closeButton = new QPushButton(uiText("닫기", "Close"), dialog);
-    closeButton->setObjectName("detailCloseButton");
-    footerRow->addWidget(closeButton);
-    root->addLayout(footerRow);
-
-    QObject::connect(closeButton, &QPushButton::clicked, dialog, &QDialog::close);
-
-    const auto makeCard = [dialog](QVBoxLayout* parentLayout, const QString& title) {
-        auto* card = new QWidget(dialog);
-        card->setObjectName("detailCard");
-        auto* cardLayout = new QVBoxLayout(card);
-        cardLayout->setContentsMargins(16, 14, 16, 14);
-        cardLayout->setSpacing(10);
-        if (!title.isEmpty()) {
-            auto* titleLabel = new QLabel(title, card);
-            titleLabel->setObjectName("detailSectionTitle");
-            cardLayout->addWidget(titleLabel);
-        }
-        parentLayout->addWidget(card);
-        return cardLayout;
-    };
-
-    const auto addDetailRow = [dialog, this](QGridLayout* form,
-                                   int row,
-                                   const QString& label,
-                                   const QString& value,
-                                   const QString& copyText = {},
-                                   bool sensitive = false) {
-        if (value.isEmpty())
-            return row;
-
-        auto* labelWidget = new QLabel(label, dialog);
-        labelWidget->setObjectName("detailLabel");
-        auto* valueWidget = new QLabel(value, dialog);
-        valueWidget->setObjectName("detailValue");
-        valueWidget->setWordWrap(true);
-        valueWidget->setTextInteractionFlags(Qt::TextSelectableByMouse);
-        auto* copyButton = new QPushButton(uiText("복사", "Copy"), dialog);
-        copyButton->setEnabled(!copyText.isEmpty());
-        QObject::connect(copyButton, &QPushButton::clicked, dialog, [this, copyText, sensitive] {
-            copyToClipboard(copyText, sensitive);
-        });
-        form->addWidget(labelWidget, row, 0);
-        form->addWidget(valueWidget, row, 1);
-        form->addWidget(copyButton, row, 2);
-        return row + 1;
-    };
-
-    const auto addWebsiteDetailRow = [dialog, this](QGridLayout* form,
-                                         int row,
-                                         const QString& label,
-                                         const QString& value) {
-        if (value.isEmpty())
-            return row;
-
-        auto* labelWidget = new QLabel(label, dialog);
-        labelWidget->setObjectName("detailLabel");
-        auto* valueWidget = new QLabel(linkedWebsiteText({value}), dialog);
-        valueWidget->setObjectName("detailValue");
-        valueWidget->setTextFormat(Qt::RichText);
-        valueWidget->setWordWrap(true);
-        valueWidget->setTextInteractionFlags(Qt::TextBrowserInteraction | Qt::TextSelectableByMouse);
-        valueWidget->setOpenExternalLinks(false);
-        QObject::connect(valueWidget, &QLabel::linkActivated, valueWidget, [](const QString& link) {
-            QDesktopServices::openUrl(QUrl(link));
-        });
-        auto* copyButton = new QPushButton(uiText("복사", "Copy"), dialog);
-        QObject::connect(copyButton, &QPushButton::clicked, dialog, [this, value] {
-            copyToClipboard(value, false);
-        });
-        form->addWidget(labelWidget, row, 0);
-        form->addWidget(valueWidget, row, 1);
-        form->addWidget(copyButton, row, 2);
-        return row + 1;
-    };
+    auto* dialog = new ItemDetailDialog(
+        itemId,
+        fallbackTitle,
+        itemIcon,
+        [this](const QString& text, bool sensitive) {
+            copyToClipboard(text, sensitive);
+        },
+        [this](const QString& id, QString* errorMessage) {
+            return totpCodeForItem(id, errorMessage);
+        },
+        nullptr);
 
     auto* watcher = new QFutureWatcher<DetailsResult>(dialog);
     QObject::connect(watcher, &QFutureWatcher<DetailsResult>::finished, dialog,
-        [watcher,
-            contentLayout,
-            loadingLabel,
-            loadingBar,
-            makeCard,
-            addDetailRow,
-            addWebsiteDetailRow,
-            fallbackTitle,
-            dialog,
-            this,
-            itemId] {
+        [watcher, dialog, this] {
             const DetailsResult result = watcher->result();
 
             if (result.generation != m_vaultGeneration || !m_passwordManager->hasSession()) {
@@ -3551,293 +3027,13 @@ void QuickWindow::showItemDetails(QListWidgetItem* item)
                 return;
             }
 
-            loadingLabel->hide();
-            loadingBar->hide();
-            if (QLayoutItem* item = contentLayout->takeAt(contentLayout->count() - 1))
-                delete item;
-
             if (!result.errorMessage.isEmpty()) {
-                loadingLabel->setText(result.errorMessage);
-                loadingLabel->show();
+                dialog->setError(result.errorMessage);
                 watcher->deleteLater();
                 return;
             }
 
-            const PasswordManager::ItemDetails details = result.details;
-            const QString itemTitle = details.name.isEmpty() ? fallbackTitle : details.name;
-            const bool protonPassDetails = details.providerId == QStringLiteral("protonpass");
-
-            QVBoxLayout* titleLayout = makeCard(contentLayout, {});
-            auto* titleLabel = new QLabel(itemTitle, titleLayout->parentWidget());
-            titleLabel->setObjectName("detailHeader");
-            titleLabel->setWordWrap(true);
-            titleLayout->addWidget(titleLabel);
-            auto* providerLabel = new QLabel(
-                protonPassDetails ? QStringLiteral("Proton Pass") : QStringLiteral("Bitwarden"),
-                titleLayout->parentWidget());
-            providerLabel->setObjectName("detailSubtle");
-            titleLayout->addWidget(providerLabel);
-            if (!protonPassDetails && !details.id.isEmpty()) {
-                auto* idLabel = new QLabel(details.id, titleLayout->parentWidget());
-                idLabel->setObjectName("detailSubtle");
-                idLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-                idLabel->setWordWrap(true);
-                titleLayout->addWidget(idLabel);
-            }
-
-            if (protonPassDetails) {
-                for (const VaultDetailSection& section : details.providerSections) {
-                    QVBoxLayout* sectionLayout = makeCard(contentLayout, section.title);
-                    QGridLayout* sectionForm = makeDetailForm();
-                    int row = 0;
-                    for (const VaultDetailField& field : section.fields) {
-                        if (!field.totpSecret) {
-                            if (field.website) {
-                                row = addWebsiteDetailRow(sectionForm, row, field.name, field.value);
-                                continue;
-                            }
-                            const int visibleTail = field.name.contains(QStringLiteral("number"), Qt::CaseInsensitive)
-                                ? 4
-                                : 0;
-                            row = addDetailRow(sectionForm,
-                                row,
-                                field.name,
-                                field.sensitive ? maskedSecretValue(field.value, visibleTail) : field.value,
-                                field.value,
-                                field.sensitive);
-                            continue;
-                        }
-
-                        QWidget* rowParent = sectionLayout->parentWidget();
-                        auto* labelWidget = new QLabel(field.name, rowParent);
-                        labelWidget->setObjectName("detailLabel");
-                        auto* valueWidget = new QLabel(maskedSecretValue(field.value), rowParent);
-                        valueWidget->setObjectName("detailValue");
-                        auto* copyButton = new QPushButton(uiText("코드 복사", "Copy code"), rowParent);
-                        const QString totpSecret = field.value;
-                        QObject::connect(copyButton, &QPushButton::clicked, copyButton, [this, copyButton, totpSecret] {
-                            QString errorMessage;
-                            const QString code = generateTotpCode(totpSecret, &errorMessage);
-                            if (code.isEmpty()) {
-                                copyButton->setToolTip(errorMessage);
-                                return;
-                            }
-
-                            copyToClipboard(code, true);
-                            copyButton->setText(uiText("복사됨", "Copied"));
-                            QTimer::singleShot(1200, copyButton, [copyButton] {
-                                copyButton->setText(uiText("코드 복사", "Copy code"));
-                            });
-                        });
-                        sectionForm->addWidget(labelWidget, row, 0);
-                        sectionForm->addWidget(valueWidget, row, 1);
-                        sectionForm->addWidget(copyButton, row, 2);
-                        ++row;
-                    }
-                    sectionLayout->addLayout(sectionForm);
-                }
-
-                if (details.typeCode == 1 && !details.uris.isEmpty()) {
-                    QVBoxLayout* urisLayout = makeCard(contentLayout, uiText("웹 사이트", "Websites"));
-                    auto* uriText = new QLabel(linkedWebsiteText(details.uris), urisLayout->parentWidget());
-                    uriText->setObjectName("detailValue");
-                    uriText->setTextFormat(Qt::RichText);
-                    uriText->setWordWrap(true);
-                    uriText->setTextInteractionFlags(Qt::TextBrowserInteraction | Qt::TextSelectableByMouse);
-                    uriText->setOpenExternalLinks(false);
-                    QObject::connect(uriText, &QLabel::linkActivated, uriText, [](const QString& link) {
-                        QDesktopServices::openUrl(QUrl(link));
-                    });
-                    urisLayout->addWidget(uriText);
-                }
-            } else if (details.typeCode == 1) {
-                QVBoxLayout* credentialsLayout = makeCard(contentLayout, uiText("로그인 정보", "Login credentials"));
-                QGridLayout* credentialsForm = makeDetailForm();
-                int row = 0;
-                row = addDetailRow(credentialsForm, row, uiText("사용자 이름", "Username"), details.username, details.username);
-                row = addDetailRow(credentialsForm,
-                    row,
-                    uiText("비밀번호", "Password"),
-                    maskedSecretValue(details.password),
-                    details.password,
-                    true);
-                if (!details.totp.isEmpty()) {
-                    QWidget* rowParent = credentialsLayout->parentWidget();
-                    auto* labelWidget = new QLabel(uiText("TOTP", "TOTP"), rowParent);
-                    labelWidget->setObjectName("detailLabel");
-                    auto* valueWidget = new QLabel(maskedSecretValue(details.totp), rowParent);
-                    valueWidget->setObjectName("detailValue");
-                    auto* copyButton = new QPushButton(uiText("코드 복사", "Copy code"), rowParent);
-                    QObject::connect(copyButton, &QPushButton::clicked, copyButton, [this, itemId, copyButton] {
-                        QString errorMessage;
-                        const QString totp = totpCodeForItem(itemId, &errorMessage);
-                        if (totp.isEmpty()) {
-                            copyButton->setToolTip(errorMessage);
-                            return;
-                        }
-
-                        copyToClipboard(totp, true);
-                        copyButton->setText(uiText("복사됨", "Copied"));
-                        QTimer::singleShot(1200, copyButton, [copyButton] {
-                            copyButton->setText(uiText("코드 복사", "Copy code"));
-                        });
-                    });
-                    credentialsForm->addWidget(labelWidget, row, 0);
-                    credentialsForm->addWidget(valueWidget, row, 1);
-                    credentialsForm->addWidget(copyButton, row, 2);
-                    ++row;
-                }
-                if (row == 0)
-                    addDetailRow(credentialsForm, row, uiText("상태", "Status"), uiText("로그인 필드 없음", "No login fields"));
-                credentialsLayout->addLayout(credentialsForm);
-            } else if (details.typeCode == 3) {
-                QVBoxLayout* cardLayout = makeCard(contentLayout, uiText("카드 정보", "Card details"));
-                QGridLayout* cardForm = makeDetailForm();
-                int row = 0;
-                row = addDetailRow(cardForm, row, uiText("카드 소유자", "Cardholder"), details.card.cardholderName, details.card.cardholderName);
-                row = addDetailRow(cardForm, row, uiText("브랜드", "Brand"), details.card.brand, details.card.brand);
-                row = addDetailRow(cardForm,
-                    row,
-                    uiText("카드 번호", "Card number"),
-                    maskedSecretValue(details.card.number, 4),
-                    details.card.number,
-                    true);
-                QStringList expirationParts;
-                if (!details.card.expirationMonth.isEmpty())
-                    expirationParts.push_back(details.card.expirationMonth);
-                if (!details.card.expirationYear.isEmpty())
-                    expirationParts.push_back(details.card.expirationYear);
-                const QString expiration = expirationParts.join(QLatin1Char('/'));
-                row = addDetailRow(cardForm, row, uiText("만료일", "Expiration"), expiration, expiration);
-                row = addDetailRow(cardForm,
-                    row,
-                    uiText("보안 코드", "Security code"),
-                    maskedSecretValue(details.card.securityCode),
-                    details.card.securityCode,
-                    true);
-                if (row == 0)
-                    addDetailRow(cardForm, row, uiText("상태", "Status"), uiText("카드 필드 없음", "No card fields"));
-                cardLayout->addLayout(cardForm);
-            } else if (details.typeCode == 4) {
-                QVBoxLayout* identityLayout = makeCard(contentLayout, uiText("신원 정보", "Identity details"));
-                QGridLayout* identityForm = makeDetailForm();
-                int row = 0;
-                row = addDetailRow(identityForm, row, uiText("호칭", "Title"), details.identity.title, details.identity.title);
-                row = addDetailRow(identityForm, row, uiText("이름", "First name"), details.identity.firstName, details.identity.firstName);
-                row = addDetailRow(identityForm, row, uiText("중간 이름", "Middle name"), details.identity.middleName, details.identity.middleName);
-                row = addDetailRow(identityForm, row, uiText("성", "Last name"), details.identity.lastName, details.identity.lastName);
-                row = addDetailRow(identityForm, row, uiText("회사", "Company"), details.identity.company, details.identity.company);
-                row = addDetailRow(identityForm, row, uiText("사용자 이름", "Username"), details.identity.username, details.identity.username);
-                row = addDetailRow(identityForm, row, uiText("이메일", "Email"), details.identity.email, details.identity.email);
-                row = addDetailRow(identityForm, row, uiText("전화번호", "Phone"), details.identity.phone, details.identity.phone);
-                row = addDetailRow(identityForm, row, uiText("주소 1", "Address 1"), details.identity.address1, details.identity.address1);
-                row = addDetailRow(identityForm, row, uiText("주소 2", "Address 2"), details.identity.address2, details.identity.address2);
-                row = addDetailRow(identityForm, row, uiText("주소 3", "Address 3"), details.identity.address3, details.identity.address3);
-                row = addDetailRow(identityForm, row, uiText("도시", "City"), details.identity.city, details.identity.city);
-                row = addDetailRow(identityForm, row, uiText("주/도", "State / Province"), details.identity.state, details.identity.state);
-                row = addDetailRow(identityForm, row, uiText("우편번호", "Postal code"), details.identity.postalCode, details.identity.postalCode);
-                row = addDetailRow(identityForm, row, uiText("국가", "Country"), details.identity.country, details.identity.country);
-                row = addDetailRow(identityForm,
-                    row,
-                    uiText("주민/사회보장 번호", "Social security number"),
-                    maskedSecretValue(details.identity.socialSecurityNumber, 4),
-                    details.identity.socialSecurityNumber,
-                    true);
-                row = addDetailRow(identityForm,
-                    row,
-                    uiText("여권 번호", "Passport number"),
-                    maskedSecretValue(details.identity.passportNumber, 4),
-                    details.identity.passportNumber,
-                    true);
-                row = addDetailRow(identityForm,
-                    row,
-                    uiText("면허 번호", "License number"),
-                    maskedSecretValue(details.identity.licenseNumber, 4),
-                    details.identity.licenseNumber,
-                    true);
-                if (row == 0)
-                    addDetailRow(identityForm, row, uiText("상태", "Status"), uiText("신원 필드 없음", "No identity fields"));
-                identityLayout->addLayout(identityForm);
-            } else if (details.typeCode == 5) {
-                QVBoxLayout* sshLayout = makeCard(contentLayout, uiText("SSH 키", "SSH key"));
-                QGridLayout* sshForm = makeDetailForm();
-                int row = 0;
-                row = addDetailRow(sshForm, row, uiText("공개 키", "Public key"), details.sshKey.publicKey, details.sshKey.publicKey);
-                row = addDetailRow(sshForm, row, uiText("지문", "Fingerprint"), details.sshKey.fingerprint, details.sshKey.fingerprint);
-                row = addDetailRow(sshForm,
-                    row,
-                    uiText("개인 키", "Private key"),
-                    maskedSecretValue(details.sshKey.privateKey),
-                    details.sshKey.privateKey,
-                    true);
-                if (row == 0)
-                    addDetailRow(sshForm, row, uiText("상태", "Status"), uiText("SSH 키 필드 없음", "No SSH key fields"));
-                sshLayout->addLayout(sshForm);
-            }
-
-            if (!protonPassDetails && details.typeCode == 1 && !details.uris.isEmpty()) {
-                QVBoxLayout* urisLayout = makeCard(contentLayout, uiText("웹 사이트", "Websites"));
-                auto* uriText = new QLabel(linkedWebsiteText(details.uris), urisLayout->parentWidget());
-                uriText->setObjectName("detailValue");
-                uriText->setTextFormat(Qt::RichText);
-                uriText->setWordWrap(true);
-                uriText->setTextInteractionFlags(Qt::TextBrowserInteraction | Qt::TextSelectableByMouse);
-                uriText->setOpenExternalLinks(false);
-                QObject::connect(uriText, &QLabel::linkActivated, uriText, [](const QString& link) {
-                    QDesktopServices::openUrl(QUrl(link));
-                });
-                urisLayout->addWidget(uriText);
-            }
-
-            if (!protonPassDetails && !details.customFields.isEmpty()) {
-                QVBoxLayout* customLayout = makeCard(contentLayout, uiText("사용자 지정 필드", "Custom fields"));
-                QGridLayout* customForm = makeDetailForm();
-                int customRow = 0;
-                for (const VaultCustomField& field : details.customFields) {
-                    const bool sensitive = field.typeCode == 1;
-                    QString displayValue = sensitive ? maskedSecretValue(field.value) : field.value;
-                    if (field.typeCode == 2) {
-                        const bool enabled = field.value.compare(QStringLiteral("true"), Qt::CaseInsensitive) == 0;
-                        displayValue = enabled ? uiText("예", "Yes") : uiText("아니요", "No");
-                    }
-                    customRow = addDetailRow(
-                        customForm,
-                        customRow,
-                        field.name.isEmpty() ? uiText("사용자 지정", "Custom") : field.name,
-                        displayValue,
-                        field.value,
-                        sensitive);
-                }
-                customLayout->addLayout(customForm);
-            }
-
-            if (!details.notes.isEmpty()) {
-                const QString notesTitle = details.typeCode == 2
-                    ? uiText("보안 메모", "Secure note")
-                    : uiText("메모", "Notes");
-                QVBoxLayout* notesLayout = makeCard(contentLayout, notesTitle);
-                auto* notesEdit = new QPlainTextEdit(details.notes, notesLayout->parentWidget());
-                notesEdit->setReadOnly(true);
-                notesEdit->setMinimumHeight(details.typeCode == 2 ? 180 : 90);
-                notesLayout->addWidget(notesEdit);
-            }
-
-            if (!protonPassDetails) {
-                QVBoxLayout* metaLayout = makeCard(contentLayout, uiText("메타데이터", "Metadata"));
-                QGridLayout* metaForm = makeDetailForm();
-                int metaRow = 0;
-                metaRow = addDetailRow(metaForm, metaRow, uiText("유형", "Type"), details.type);
-                metaRow = addDetailRow(metaForm, metaRow, QStringLiteral("ID"), details.id, details.id);
-                metaRow = addDetailRow(metaForm, metaRow, uiText("폴더 ID", "Folder ID"), details.folderId, details.folderId);
-                metaRow = addDetailRow(metaForm, metaRow, uiText("조직 ID", "Organization ID"), details.organizationId, details.organizationId);
-                metaRow = addDetailRow(metaForm, metaRow, uiText("컬렉션", "Collections"), details.collectionIds, details.collectionIds);
-                metaRow = addDetailRow(metaForm, metaRow, uiText("생성일", "Created"), details.creationDate);
-                metaRow = addDetailRow(metaForm, metaRow, uiText("수정일", "Updated"), details.revisionDate);
-                addDetailRow(metaForm, metaRow, uiText("삭제일", "Deleted"), details.deletedDate);
-                metaLayout->addLayout(metaForm);
-            }
-
-            contentLayout->addStretch(1);
+            dialog->setDetails(result.details);
             watcher->deleteLater();
         });
 
@@ -3954,18 +3150,23 @@ void QuickWindow::setStatus(const QString& message)
     const QString cleanMessage = cleanStatusText(message);
 
     if (m_search && m_search->isVisible() && m_authMode == AuthMode::None) {
-        QString searchMessage = compactMessage;
-        constexpr qsizetype MaxSearchPlaceholderLength = 70;
-        if (searchMessage.size() > MaxSearchPlaceholderLength)
-            searchMessage = searchMessage.left(MaxSearchPlaceholderLength - 3).trimmed() + QStringLiteral("...");
-        m_search->setPlaceholderText(compactMessage.isEmpty()
-                ? uiText("비밀번호 검색", "Password search")
-                : searchMessage);
-        m_search->setToolTip(cleanMessage == compactMessage ? QString() : cleanMessage);
-        m_status->clear();
-        m_status->setVisible(false);
-        updateWindowSize();
-        return;
+        if (m_search->text().trimmed().isEmpty()) {
+            QString searchMessage = compactMessage;
+            constexpr qsizetype MaxSearchPlaceholderLength = 70;
+            if (searchMessage.size() > MaxSearchPlaceholderLength)
+                searchMessage = searchMessage.left(MaxSearchPlaceholderLength - 3).trimmed() + QStringLiteral("...");
+            m_search->setPlaceholderText(compactMessage.isEmpty()
+                    ? uiText("비밀번호 검색", "Password search")
+                    : searchMessage);
+            m_search->setToolTip(cleanMessage == compactMessage ? QString() : cleanMessage);
+            m_status->clear();
+            m_status->setVisible(false);
+            updateWindowSize();
+            return;
+        }
+
+        m_search->setPlaceholderText(uiText("비밀번호 검색", "Password search"));
+        m_search->setToolTip(QString());
     }
 
     m_status->setText(compactMessage);
@@ -3984,6 +3185,8 @@ void QuickWindow::moveToConfiguredPosition()
     QScreen* screen = nullptr;
     if (AppSettings::customWindowPositionEnabled())
         screen = QGuiApplication::screenAt(QPoint(AppSettings::windowPositionX(), AppSettings::windowPositionY()));
+    else
+        screen = QGuiApplication::screenAt(QCursor::pos());
 
     if (!screen)
         screen = QGuiApplication::primaryScreen();

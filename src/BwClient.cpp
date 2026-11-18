@@ -3,26 +3,17 @@
 #include "AppSettings.h"
 #include "I18n.h"
 
-#include <QComboBox>
 #include <QCoreApplication>
-#include <QDialog>
-#include <QDialogButtonBox>
 #include <QDir>
-#include <QFormLayout>
 #include <QFileInfo>
-#include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
-#include <QLineEdit>
-#include <QLabel>
 #include <QMutexLocker>
-#include <QObject>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QRegularExpression>
-#include <QVBoxLayout>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -356,71 +347,6 @@ QString uiText(const char* ko, const char* en)
     return I18n::translate("BwClient", en, ko);
 }
 
-QString loginDialogStyle()
-{
-    if (AppSettings::theme() == QStringLiteral("light")) {
-        return QStringLiteral(R"(
-            QDialog {
-                background: #f8f9fa;
-                color: #24292f;
-            }
-            QLabel {
-                color: #24292f;
-            }
-            QLineEdit, QComboBox {
-                background: #ffffff;
-                color: #24292f;
-                border: 1px solid #d0d7de;
-                border-radius: 6px;
-                padding: 6px 8px;
-                selection-background-color: #0969da;
-                selection-color: #ffffff;
-                min-height: 24px;
-            }
-            QPushButton {
-                background: #f3f4f6;
-                color: #24292f;
-                border: 1px solid #d0d7de;
-                border-radius: 6px;
-                padding: 6px 10px;
-            }
-            QPushButton:hover {
-                background: #eaeef2;
-            }
-        )");
-    }
-
-    return QStringLiteral(R"(
-        QDialog {
-            background: #202124;
-            color: #e8eaed;
-        }
-        QLabel {
-            color: #e8eaed;
-        }
-        QLineEdit, QComboBox {
-            background: #111317;
-            color: #f1f3f4;
-            border: 1px solid #3a3f46;
-            border-radius: 6px;
-            padding: 6px 8px;
-            selection-background-color: #1f8cff;
-            selection-color: #ffffff;
-            min-height: 24px;
-        }
-        QPushButton {
-            background: #2f343a;
-            color: #f1f3f4;
-            border: 1px solid #4b5563;
-            border-radius: 6px;
-            padding: 6px 10px;
-        }
-        QPushButton:hover {
-            background: #3a4048;
-        }
-    )");
-}
-
 }
 
 bool BwClient::CommandResult::ok() const
@@ -562,30 +488,6 @@ bool BwClient::configureServer(const QString& serverUrl, QString* errorMessage)
     return true;
 }
 
-bool BwClient::ensureSession(QWidget* parent, QString* errorMessage)
-{
-    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
-
-    if (!isAvailable(errorMessage))
-        return false;
-
-    const VaultStatus currentStatus = status(errorMessage);
-
-    switch (currentStatus) {
-    case VaultStatus::Unauthenticated:
-        return login(parent, errorMessage);
-    case VaultStatus::Locked:
-        return unlock(parent, errorMessage);
-    case VaultStatus::Unlocked:
-        setError(errorMessage, {});
-        return true;
-    case VaultStatus::Unknown:
-        return false;
-    }
-
-    return false;
-}
-
 bool BwClient::loginWithCredentials(const QString& serverUrl,
     const QString& email,
     const QString& password,
@@ -704,179 +606,6 @@ bool BwClient::unlockWithPassword(const QString& password, QString* errorMessage
     return true;
 }
 
-bool BwClient::login(QWidget* parent, QString* errorMessage)
-{
-    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
-
-    QDialog dialog(parent);
-    dialog.setWindowTitle(uiText("Bitwarden 로그인", "Bitwarden Login"));
-    dialog.setModal(true);
-    dialog.resize(460, 250);
-    dialog.setMinimumWidth(460);
-    dialog.setStyleSheet(loginDialogStyle());
-
-    auto* emailEdit = new QLineEdit(&dialog);
-    emailEdit->setPlaceholderText("name@example.com");
-    emailEdit->setMinimumWidth(260);
-
-    auto* passwordEdit = new QLineEdit(&dialog);
-    passwordEdit->setEchoMode(QLineEdit::Password);
-    passwordEdit->setMinimumWidth(260);
-
-    auto* codeEdit = new QLineEdit(&dialog);
-    codeEdit->setPlaceholderText(uiText("필요한 경우에만 입력", "Only if required"));
-    codeEdit->setMinimumWidth(260);
-
-    auto* methodCombo = new QComboBox(&dialog);
-    methodCombo->addItem(uiText("없음", "None"), QString());
-    methodCombo->addItem(uiText("인증 앱", "Authenticator app"), "0");
-    methodCombo->addItem(uiText("이메일", "Email"), "1");
-    methodCombo->addItem(uiText("YubiKey OTP", "YubiKey OTP"), "3");
-
-    auto* form = new QFormLayout;
-    form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    form->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
-    form->setHorizontalSpacing(18);
-    form->setVerticalSpacing(10);
-    form->addRow(uiText("이메일", "Email"), emailEdit);
-    form->addRow(uiText("마스터 비밀번호", "Master password"), passwordEdit);
-    form->addRow(uiText("2단계 방식", "Two-step method"), methodCombo);
-    form->addRow(uiText("2단계 코드", "Two-step code"), codeEdit);
-
-    auto* note = new QLabel(
-        uiText("처음 사용하는 경우 Bitwarden CLI 계정 로그인이 먼저 필요합니다.",
-               "First use requires logging in to your Bitwarden CLI account."),
-        &dialog);
-    note->setWordWrap(true);
-
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-
-    auto* layout = new QVBoxLayout(&dialog);
-    layout->setContentsMargins(20, 18, 20, 14);
-    layout->setSpacing(12);
-    layout->addWidget(note);
-    layout->addLayout(form);
-    layout->addWidget(buttons);
-
-    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-
-    if (dialog.exec() != QDialog::Accepted) {
-        setError(errorMessage, {});
-        return false;
-    }
-
-    const QString email = emailEdit->text().trimmed();
-    QString password = passwordEdit->text();
-    const QString code = codeEdit->text().trimmed();
-    const QString method = methodCombo->currentData().toString();
-
-    if (email.isEmpty() || password.isEmpty()) {
-        password.fill(QChar('\0'));
-        setError(errorMessage, uiText("이메일과 마스터 비밀번호를 입력하세요.",
-                                      "Enter your email and master password."));
-        return false;
-    }
-
-    if (!code.isEmpty() && method.isEmpty()) {
-        password.fill(QChar('\0'));
-        setError(errorMessage, uiText("2단계 코드를 입력한 경우 2단계 방식도 선택하세요.",
-                                      "Choose a two-step method when entering a two-step code."));
-        return false;
-    }
-
-    QByteArray passwordInput = password.toUtf8();
-    password.fill(QChar('\0'));
-
-    QProcessEnvironment extraEnvironment;
-    extraEnvironment.insert("BW_PASSWORD", QString::fromUtf8(passwordInput));
-
-    QStringList arguments = {"login", email, "--passwordenv", "BW_PASSWORD", "--raw", "--nointeraction"};
-    QString displayCommand = QString("login %1 --passwordenv BW_PASSWORD --raw --nointeraction").arg(email);
-
-    if (!code.isEmpty()) {
-        arguments << "--method" << method << "--code" << code;
-        displayCommand += " --method " + method + " --code <code>";
-    }
-
-    const CommandResult result = run(arguments, {}, 60000, extraEnvironment);
-    extraEnvironment.insert("BW_PASSWORD", QString());
-    passwordInput.fill('\0');
-
-    if (!result.ok()) {
-        setError(errorMessage, describeCommandError(program(), displayCommand, result));
-        return false;
-    }
-
-    const QString session = trimmedUtf8(result.standardOutput);
-    if (session.isEmpty()) {
-        setError(errorMessage, uiText("Bitwarden CLI가 세션 키를 반환하지 않았습니다.",
-                                      "Bitwarden CLI did not return a session key."));
-        return false;
-    }
-
-    {
-        QMutexLocker<QMutex> stateLocker(&m_stateMutex);
-        m_session = session;
-    }
-    if (AppSettings::credentialSessionStorageEnabled())
-        writeStoredSession(session);
-
-    setError(errorMessage, {});
-    return true;
-}
-
-bool BwClient::unlock(QWidget* parent, QString* errorMessage)
-{
-    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
-
-    bool accepted = false;
-    QString password = QInputDialog::getText(
-        parent,
-        "Bitwarden Unlock",
-        "Master password:",
-        QLineEdit::Password,
-        {},
-        &accepted);
-
-    if (!accepted || password.isEmpty()) {
-        setError(errorMessage, {});
-        return false;
-    }
-
-    QByteArray passwordInput = password.toUtf8();
-    password.fill(QChar('\0'));
-
-    QProcessEnvironment extraEnvironment;
-    extraEnvironment.insert("BW_PASSWORD", QString::fromUtf8(passwordInput));
-
-    const QStringList arguments = {"unlock", "--passwordenv", "BW_PASSWORD", "--raw", "--nointeraction"};
-    const CommandResult result = run(arguments, {}, 30000, extraEnvironment);
-    extraEnvironment.insert("BW_PASSWORD", QString());
-    passwordInput.fill('\0');
-
-    if (!result.ok()) {
-        setError(errorMessage, describeCommandError(program(), arguments, result));
-        return false;
-    }
-
-    const QString session = trimmedUtf8(result.standardOutput);
-    if (session.isEmpty()) {
-        setError(errorMessage, "Bitwarden CLI did not return a session key.");
-        return false;
-    }
-
-    {
-        QMutexLocker<QMutex> stateLocker(&m_stateMutex);
-        m_session = session;
-    }
-    if (AppSettings::credentialSessionStorageEnabled())
-        writeStoredSession(session);
-
-    setError(errorMessage, {});
-    return true;
-}
-
 bool BwClient::lock(QString* errorMessage)
 {
     QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
@@ -971,46 +700,7 @@ QVector<VaultItem> BwClient::listItems(QString* errorMessage) const
     for (const QJsonValue& value : document.array()) {
         const VaultItem item = vaultItemFromObject(value.toObject());
 
-        if (!item.id.isEmpty())
-            items.push_back(item);
-    }
-
-    setError(errorMessage, {});
-    return items;
-}
-
-QVector<VaultItem> BwClient::search(const QString& keyword, QString* errorMessage) const
-{
-    QVector<VaultItem> items;
-    const QString trimmedKeyword = keyword.trimmed();
-
-    if (trimmedKeyword.isEmpty()) {
-        setError(errorMessage, {});
-        return items;
-    }
-
-    const QStringList arguments = {"list", "items", "--search", trimmedKeyword};
-    const CommandResult result = run(arguments, {}, 20000);
-
-    if (!result.ok()) {
-        setError(errorMessage, describeCommandError(program(), arguments, result));
-        return items;
-    }
-
-    QJsonParseError parseError;
-    const QJsonDocument document = QJsonDocument::fromJson(result.standardOutput, &parseError);
-
-    if (parseError.error != QJsonParseError::NoError || !document.isArray()) {
-        setError(errorMessage, uiText("Bitwarden 검색 결과를 해석하지 못했습니다: %1",
-                                      "Could not parse Bitwarden search results: %1")
-                .arg(parseError.errorString()));
-        return items;
-    }
-
-    for (const QJsonValue& value : document.array()) {
-        const VaultItem item = vaultItemFromObject(value.toObject());
-
-        if (!item.id.isEmpty())
+        if (!item.id.isEmpty() && item.deletedDate.isEmpty())
             items.push_back(item);
     }
 

@@ -1,5 +1,7 @@
 #include "AppSettings.h"
 
+#include "I18n.h"
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -9,6 +11,10 @@
 
 namespace
 {
+QString uiText(const char* english, const char* korean)
+{
+    return I18n::translate("AppSettings", english, korean);
+}
 constexpr int DefaultWindowWidth = 540;
 constexpr int DefaultWindowHeight = 360;
 constexpr int DefaultWindowPosition = 0;
@@ -82,8 +88,11 @@ QString startupRuntimeError(const QString& executablePath)
 {
 #ifdef Q_OS_WIN
     const QFileInfo executable(executablePath);
-    if (!executable.exists() || !executable.isFile())
-        return QString("The startup executable does not exist: %1").arg(QDir::toNativeSeparators(executablePath));
+    if (!executable.exists() || !executable.isFile()) {
+        return uiText("The startup executable does not exist: %1",
+                      "자동 시작 실행 파일이 존재하지 않습니다: %1")
+            .arg(QDir::toNativeSeparators(executablePath));
+    }
 
     const QDir directory = executable.dir();
     QStringList missingFiles;
@@ -109,7 +118,8 @@ QString startupRuntimeError(const QString& executablePath)
 #endif
 
     if (!missingFiles.isEmpty()) {
-        return QString("Required runtime files are missing beside the application: %1. Use the packaged release created with windeployqt.")
+        return uiText("Required runtime files are missing beside the application: %1. Use the packaged release created with windeployqt.",
+                      "실행 파일 옆에 필요한 런타임 파일이 없습니다: %1. windeployqt로 패키징된 릴리스를 사용하세요.")
             .arg(missingFiles.join(QStringLiteral(", ")));
     }
 #else
@@ -146,13 +156,16 @@ QString settingsError(QSettings::Status status)
 {
     switch (status) {
     case QSettings::AccessError:
-        return QStringLiteral("Windows denied access to the current user's startup registry key.");
+        return uiText("Windows denied access to the current user's startup registry key.",
+                      "Windows에서 현재 사용자의 자동 시작 레지스트리 키 접근을 거부했습니다.");
     case QSettings::FormatError:
-        return QStringLiteral("Windows returned an invalid startup registry value.");
+        return uiText("Windows returned an invalid startup registry value.",
+                      "Windows에서 잘못된 자동 시작 레지스트리 값을 반환했습니다.");
     case QSettings::NoError:
         break;
     }
-    return QStringLiteral("The Windows startup registry entry could not be updated.");
+    return uiText("The Windows startup registry entry could not be updated.",
+                  "Windows 자동 시작 레지스트리 항목을 업데이트하지 못했습니다.");
 }
 
 void setError(QString* target, const QString& message)
@@ -522,7 +535,8 @@ bool AppSettings::setStartOnLoginEnabled(bool enabled, QString* errorMessage)
         ? runKey.value(StartOnLoginName).toString() == quotedApplicationPath()
         : !hasStartupEntry(runKey);
     if (!verified) {
-        setError(errorMessage, QStringLiteral("Windows did not retain the requested startup registry entry."));
+        setError(errorMessage, uiText("Windows did not retain the requested startup registry entry.",
+                                      "Windows에 요청한 자동 시작 레지스트리 항목이 유지되지 않았습니다."));
         return false;
     }
 #endif
@@ -565,7 +579,9 @@ bool AppSettings::applyStartupPreference(QString* errorMessage)
         return setStartOnLoginEnabled(true, errorMessage);
 
     setError(errorMessage,
-        QString("The registered startup entry is not runnable. %1").arg(existingRuntimeError));
+        uiText("The registered startup entry is not runnable. %1",
+               "등록된 자동 시작 항목을 실행할 수 없습니다. %1")
+            .arg(existingRuntimeError));
     return false;
 #else
     setError(errorMessage, {});

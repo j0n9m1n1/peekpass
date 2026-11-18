@@ -64,8 +64,8 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     setWindowTitle(uiText("peekpass Settings", "peekpass 설정"));
     setModal(true);
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    resize(760, 540);
-    setMinimumSize(700, 460);
+    resize(760, 640);
+    setMinimumSize(700, 520);
 
     m_languageCombo = new QComboBox(this);
     const QString currentLanguage = AppSettings::language();
@@ -336,7 +336,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
     auto* protonNote = new QLabel(
         uiText("Leave pass-cli.exe empty to use the copy beside peekpass first, then the standard Proton Pass install, then pass-cli from PATH. Proton Pass CLI keeps its own local session.",
-               "비워두면 peekpass 실행 파일 옆의 pass-cli.exe, Proton Pass 기본 설치 경로, PATH의 pass-cli 순서로 사용함. Proton Pass CLI는 자체 로컬 세션을 관리함."),
+               "비워두면 peekpass 실행 파일 옆의 pass-cli.exe, Proton Pass 기본 설치 경로, PATH의 pass-cli 순서로 사용합니다. Proton Pass CLI는 자체 로컬 세션을 관리합니다."),
         this);
     protonNote->setWordWrap(true);
     protonNote->setObjectName("settingsNote");
@@ -352,6 +352,10 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     protonCliDocs->setWordWrap(true);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    if (QPushButton* okButton = buttons->button(QDialogButtonBox::Ok))
+        okButton->setText(uiText("OK", "확인"));
+    if (QPushButton* cancelButton = buttons->button(QDialogButtonBox::Cancel))
+        cancelButton->setText(uiText("Cancel", "취소"));
 
     auto* tabs = new QTabWidget(this);
     tabs->setObjectName("settingsTabs");
@@ -363,8 +367,8 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
         auto* page = new QWidget(scrollArea);
         auto* pageLayout = new QVBoxLayout(page);
-        pageLayout->setContentsMargins(14, 14, 14, 14);
-        pageLayout->setSpacing(12);
+        pageLayout->setContentsMargins(12, 10, 12, 10);
+        pageLayout->setSpacing(10);
 
         scrollArea->setWidget(page);
         tabs->addTab(scrollArea, title);
@@ -381,7 +385,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         groupForm->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         groupForm->setFormAlignment(Qt::AlignTop);
         groupForm->setHorizontalSpacing(16);
-        groupForm->setVerticalSpacing(10);
+        groupForm->setVerticalSpacing(8);
 
         parentLayout->addWidget(group);
         return groupForm;
@@ -399,8 +403,8 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     auto* shortcutPanel = new QGroupBox(this);
     shortcutPanel->setObjectName("settingsGroup");
     auto* shortcutColumn = new QVBoxLayout(shortcutPanel);
-    shortcutColumn->setContentsMargins(14, 16, 14, 14);
-    shortcutColumn->setSpacing(8);
+    shortcutColumn->setContentsMargins(12, 8, 12, 10);
+    shortcutColumn->setSpacing(6);
     shortcutColumn->addWidget(shortcutsTitle);
     shortcutColumn->addWidget(m_shortcutsLabel);
     shortcutColumn->addStretch(1);
@@ -607,7 +611,8 @@ void SettingsDialog::requestLogout()
         const QMessageBox::StandardButton answer = QMessageBox::question(
             this,
             QStringLiteral("Proton Pass"),
-            uiText("This will run pass-cli logout and clear cached vault data. Continue?", "pass-cli logout을 실행하고 캐시된 보관함 데이터를 비움. 계속할까?"),
+            uiText("This will run pass-cli logout and clear cached vault data. Continue?",
+                   "pass-cli logout을 실행하고 캐시된 보관함 데이터를 비웁니다. 계속할까요?"),
             QMessageBox::Yes | QMessageBox::Cancel,
             QMessageBox::Cancel);
         if (answer == QMessageBox::Yes) {
@@ -640,7 +645,7 @@ void SettingsDialog::requestReset()
         this,
         uiText("Reset peekpass", "peekpass 초기화"),
         uiText("This logs out installed Bitwarden and Proton Pass CLIs, clears local peekpass settings, cached data, Windows secure sessions, and Windows startup registration. The app will close and show its first-run state when opened again. Continue?",
-               "설치된 Bitwarden 및 Proton Pass CLI에서 로그아웃하고, 로컬 peekpass 설정, 캐시 데이터, Windows 보안 세션, Windows 자동 시작 항목을 지웁니다. 앱은 종료되며 다음 실행에서 첫 화면이 표시됩니다. 계속할까?"),
+               "설치된 Bitwarden 및 Proton Pass CLI에서 로그아웃하고, 로컬 peekpass 설정, 캐시 데이터, Windows 보안 세션, Windows 자동 시작 항목을 지웁니다. 앱은 종료되며 다음 실행에서 첫 화면이 표시됩니다. 계속할까요?"),
         QMessageBox::Yes | QMessageBox::Cancel,
         QMessageBox::Cancel);
     if (answer != QMessageBox::Yes)
@@ -715,17 +720,17 @@ void SettingsDialog::updatePasswordManagerControls()
     if (m_credentialSessionStorageCheck) {
         m_credentialSessionStorageCheck->setEnabled(!protonPass);
         m_credentialSessionStorageCheck->setToolTip(protonPass
-                ? uiText("Proton Pass CLI manages its own session.", "Proton Pass CLI가 자체 세션을 관리함.")
+                ? uiText("Proton Pass CLI manages its own session.", "Proton Pass CLI가 자체 세션을 관리합니다.")
                 : QString());
     }
 
     if (m_logoutButton) {
         m_logoutButton->setText(protonPass
                 ? uiText("Log out of Proton Pass...", "Proton Pass 로그아웃...")
-                : uiText("Log out of Bitwarden..."));
+                : uiText("Log out of Bitwarden...", "Bitwarden 로그아웃..."));
         m_logoutButton->setToolTip(protonPass
-                ? uiText("Run pass-cli logout and clear cached vault data.", "pass-cli logout을 실행하고 캐시된 보관함 데이터를 비움.")
-                : uiText("Run bw logout and remove the stored peekpass session."));
+                ? uiText("Run pass-cli logout and clear cached vault data.", "pass-cli logout을 실행하고 캐시된 보관함 데이터를 비웁니다.")
+                : uiText("Run bw logout and remove the stored peekpass session.", "bw logout을 실행하고 저장된 peekpass 세션을 제거합니다."));
     }
 }
 
@@ -812,7 +817,7 @@ void SettingsDialog::applyDialogStyle()
                 font-size: 11px;
                 line-height: 140%;
             }
-            QLineEdit, QKeySequenceEdit, QComboBox {
+            QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox {
                 background: #ffffff;
                 color: #24292f;
                 border: 1px solid #d0d7de;
@@ -820,6 +825,72 @@ void SettingsDialog::applyDialogStyle()
                 padding: 5px 8px;
                 selection-background-color: #0969da;
                 selection-color: #ffffff;
+            }
+            QComboBox {
+                padding-right: 26px;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 22px;
+                border-left: 1px solid #e5e7eb;
+                border-top-right-radius: 6px;
+                border-bottom-right-radius: 6px;
+                background: transparent;
+            }
+            QComboBox::down-arrow {
+                image: url(:/icons/chevron-down-light.png);
+                width: 12px;
+                height: 8px;
+            }
+            QComboBox QAbstractItemView {
+                background: #ffffff;
+                color: #24292f;
+                border: 1px solid #d0d7de;
+                selection-background-color: #0969da;
+                selection-color: #ffffff;
+                outline: 0;
+            }
+            QSpinBox {
+                padding-right: 20px;
+            }
+            QSpinBox::up-button, QSpinBox::down-button {
+                subcontrol-origin: border;
+                width: 18px;
+                border-left: 1px solid #e5e7eb;
+                background: transparent;
+            }
+            QSpinBox::up-button {
+                subcontrol-position: top right;
+                border-top-right-radius: 6px;
+            }
+            QSpinBox::down-button {
+                subcontrol-position: bottom right;
+                border-top: 1px solid #e5e7eb;
+                border-bottom-right-radius: 6px;
+            }
+            QSpinBox::up-arrow {
+                image: url(:/icons/chevron-up-light.png);
+                width: 10px;
+                height: 6px;
+            }
+            QSpinBox::down-arrow {
+                image: url(:/icons/chevron-down-light.png);
+                width: 10px;
+                height: 6px;
+            }
+            QScrollBar:vertical {
+                background: transparent;
+                width: 8px;
+                margin: 2px;
+            }
+            QScrollBar::handle:vertical {
+                background: #c5cbd3;
+                min-height: 24px;
+                border-radius: 2px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
             }
             QCheckBox {
                 color: #24292f;
@@ -829,7 +900,7 @@ void SettingsDialog::applyDialogStyle()
                 color: #24292f;
                 border: 1px solid #d0d7de;
                 border-radius: 6px;
-                padding: 5px 10px;
+                padding: 5px 12px;
             }
             QPushButton:hover {
                 background: #eaeef2;
@@ -926,7 +997,7 @@ void SettingsDialog::applyDialogStyle()
             font-size: 11px;
             line-height: 140%;
         }
-        QLineEdit, QKeySequenceEdit, QComboBox {
+        QLineEdit, QKeySequenceEdit, QComboBox, QSpinBox {
             background: #111317;
             color: #f1f3f4;
             border: 1px solid #3a3f46;
@@ -934,6 +1005,72 @@ void SettingsDialog::applyDialogStyle()
             padding: 5px 8px;
             selection-background-color: #1f8cff;
             selection-color: #ffffff;
+        }
+        QComboBox {
+            padding-right: 26px;
+        }
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 22px;
+            border-left: 1px solid #2a2f36;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            background: transparent;
+        }
+        QComboBox::down-arrow {
+            image: url(:/icons/chevron-down-dark.png);
+            width: 12px;
+            height: 8px;
+        }
+        QComboBox QAbstractItemView {
+            background: #15171a;
+            color: #f1f3f4;
+            border: 1px solid #3a3f46;
+            selection-background-color: #1f8cff;
+            selection-color: #ffffff;
+            outline: 0;
+        }
+        QSpinBox {
+            padding-right: 20px;
+        }
+        QSpinBox::up-button, QSpinBox::down-button {
+            subcontrol-origin: border;
+            width: 18px;
+            border-left: 1px solid #2a2f36;
+            background: transparent;
+        }
+        QSpinBox::up-button {
+            subcontrol-position: top right;
+            border-top-right-radius: 6px;
+        }
+        QSpinBox::down-button {
+            subcontrol-position: bottom right;
+            border-top: 1px solid #2a2f36;
+            border-bottom-right-radius: 6px;
+        }
+        QSpinBox::up-arrow {
+            image: url(:/icons/chevron-up-dark.png);
+            width: 10px;
+            height: 6px;
+        }
+        QSpinBox::down-arrow {
+            image: url(:/icons/chevron-down-dark.png);
+            width: 10px;
+            height: 6px;
+        }
+        QScrollBar:vertical {
+            background: transparent;
+            width: 8px;
+            margin: 2px;
+        }
+        QScrollBar::handle:vertical {
+            background: #3a3f46;
+            min-height: 24px;
+            border-radius: 2px;
+        }
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            height: 0;
         }
         QCheckBox {
             color: #e8eaed;
@@ -943,7 +1080,7 @@ void SettingsDialog::applyDialogStyle()
             color: #f1f3f4;
             border: 1px solid #4b5563;
             border-radius: 6px;
-            padding: 5px 10px;
+            padding: 5px 12px;
         }
         QPushButton:hover {
             background: #3a4048;

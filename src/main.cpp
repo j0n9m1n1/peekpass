@@ -10,6 +10,8 @@
 #include <QIcon>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
+#include <QPixmap>
 #include <QString>
 #include <QStyle>
 #include <QSystemTrayIcon>
@@ -18,9 +20,37 @@
 
 namespace
 {
-QString uiText(const char* ko, const char* en)
+QString uiText(const char* sourceText, const char* koreanFallback)
 {
-    return I18n::translate("Main", en, ko);
+    return I18n::translate("Main", sourceText, koreanFallback);
+}
+
+QIcon makeAppIcon()
+{
+    QIcon icon;
+    for (int size : {16, 24, 32, 48, 64}) {
+        QPixmap pixmap(size, size);
+        pixmap.fill(Qt::transparent);
+
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        const qreal s = size / 32.0;
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor("#1f72c7"));
+        painter.drawRoundedRect(QRectF(2 * s, 2 * s, 28 * s, 28 * s), 7 * s, 7 * s);
+
+        QPen pen(QColor("#ffffff"), qMax(1.6, 2.4 * s), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        painter.setPen(pen);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawEllipse(QRectF(7.5 * s, 11 * s, 9 * s, 9 * s));
+        painter.drawLine(QPointF(16.5 * s, 15.5 * s), QPointF(24.5 * s, 15.5 * s));
+        painter.drawLine(QPointF(21 * s, 15.5 * s), QPointF(21 * s, 19.5 * s));
+        painter.drawLine(QPointF(24 * s, 15.5 * s), QPointF(24 * s, 18.5 * s));
+
+        icon.addPixmap(pixmap);
+    }
+    return icon;
 }
 }
 
@@ -30,6 +60,8 @@ int main(int argc, char* argv[])
     QApplication::setApplicationName("peekpass");
     QApplication::setOrganizationName("peekpass");
     QApplication::setApplicationVersion(QStringLiteral(PEEKPASS_VERSION));
+    const QIcon appIcon = makeAppIcon();
+    app.setWindowIcon(appIcon);
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
@@ -57,10 +89,10 @@ int main(int argc, char* argv[])
     if (!AppSettings::applyStartupPreference(&startupError)) {
         QMessageBox::warning(
             nullptr,
-            uiText("Windows 자동 시작", "Windows startup"),
+            uiText("Windows startup", "Windows 자동 시작"),
             QString("%1\n\n%2")
-                .arg(uiText("자동 시작 등록을 확인하지 못했습니다. 설정에서 자동 시작을 다시 지정하세요.",
-                         "Could not validate the startup registration. Configure startup again in Settings."),
+                .arg(uiText("Could not validate the startup registration. Configure startup again in Settings.",
+                            "자동 시작 등록을 확인하지 못했습니다. 설정에서 자동 시작을 다시 지정하세요."),
                     startupError));
     }
 
@@ -83,17 +115,18 @@ int main(int argc, char* argv[])
     QAction* quitAction = trayMenu.addAction(QString());
 
     const auto updateTrayTexts = [&] {
-        openAction->setText(uiText("열기", "Open"));
-        lockAction->setText(uiText("잠금", "Lock"));
-        settingsAction->setText(uiText("설정", "Settings"));
-        quitAction->setText(uiText("종료", "Quit"));
+        openAction->setText(uiText("Open", "열기"));
+        if (window.passwordManagerName() == QStringLiteral("Proton Pass"))
+            lockAction->setText(uiText("Log out", "로그아웃"));
+        else
+            lockAction->setText(uiText("Lock", "잠금"));
+        settingsAction->setText(uiText("Settings", "설정"));
+        quitAction->setText(uiText("Quit", "종료"));
     };
     updateTrayTexts();
-    if (window.passwordManagerName() == QStringLiteral("Proton Pass"))
-        lockAction->setText(uiText("로그아웃", "Log out"));
 
     QSystemTrayIcon trayIcon;
-    trayIcon.setIcon(QApplication::style()->standardIcon(QStyle::SP_ComputerIcon));
+    trayIcon.setIcon(appIcon);
     trayIcon.setToolTip("peekpass");
     trayIcon.setContextMenu(&trayMenu);
 
@@ -109,18 +142,18 @@ int main(int argc, char* argv[])
                 return;
             }
 
-            trayIcon.showMessage("peekpass", uiText("Proton Pass 세션에서 로그아웃했습니다.", "Proton Pass session signed out."));
+            trayIcon.showMessage("peekpass", uiText("Proton Pass session signed out.", "Proton Pass 세션에서 로그아웃했습니다."));
             return;
         }
 
         if (!window.lockVault(&errorMessage) && !errorMessage.isEmpty()) {
-            QMessageBox::warning(&window, uiText("Bitwarden 잠금", "Bitwarden Lock"), errorMessage);
+            QMessageBox::warning(&window, uiText("Bitwarden Lock", "Bitwarden 잠금"), errorMessage);
             return;
         }
 
         trayIcon.showMessage(
             "peekpass",
-            uiText("Bitwarden vault를 잠갔습니다.", "Bitwarden vault locked."));
+            uiText("Bitwarden vault locked.", "Bitwarden vault를 잠갔습니다."));
     });
 
     QObject::connect(settingsAction, &QAction::triggered, &window, [&window] {
@@ -143,9 +176,9 @@ int main(int argc, char* argv[])
     } else {
         QMessageBox::warning(
             nullptr,
-            uiText("시스템 트레이", "System Tray"),
-            uiText("시스템 트레이를 사용할 수 없습니다. peekpass는 트레이 아이콘 없이 계속 실행됩니다.",
-                   "System tray is not available. peekpass will keep running without a tray icon."));
+            uiText("System Tray", "시스템 트레이"),
+            uiText("System tray is not available. peekpass will keep running without a tray icon.",
+                   "시스템 트레이를 사용할 수 없습니다. peekpass는 트레이 아이콘 없이 계속 실행됩니다."));
     }
 
 #ifdef Q_OS_WIN
@@ -155,19 +188,17 @@ int main(int argc, char* argv[])
     window.setSettingsChangedCallback([&] {
         reloadTranslator();
         updateTrayTexts();
-        if (window.passwordManagerName() == QStringLiteral("Proton Pass"))
-            lockAction->setText(uiText("로그아웃", "Log out"));
         hotkey.unregisterHotkey();
         if (!hotkey.registerHotkey()) {
             QMessageBox::warning(
                 &window,
-                uiText("단축키", "Hotkey"),
+                uiText("Hotkey", "단축키"),
                 QString("%1\n\n%2\n\n%3")
-                    .arg(uiText("설정된 단축키를 등록하지 못했습니다.",
-                                "Failed to register the configured hotkey."),
+                    .arg(uiText("Failed to register the configured hotkey.",
+                                "설정된 단축키를 등록하지 못했습니다."),
                         hotkey.lastError(),
-                        uiText("1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다.",
-                               "Another app, such as 1Password, may already be using this shortcut."))
+                        uiText("Another app, such as 1Password, may already be using this shortcut.",
+                               "1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다."))
             );
         }
     });
@@ -175,13 +206,13 @@ int main(int argc, char* argv[])
     if (!hotkey.registerHotkey()) {
         QMessageBox::warning(
             nullptr,
-            uiText("단축키", "Hotkey"),
+            uiText("Hotkey", "단축키"),
             QString("%1\n\n%2\n\n%3")
-                .arg(uiText("설정된 단축키를 등록하지 못했습니다.",
-                            "Failed to register the configured hotkey."),
+                .arg(uiText("Failed to register the configured hotkey.",
+                            "설정된 단축키를 등록하지 못했습니다."),
                     hotkey.lastError(),
-                    uiText("1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다.",
-                           "Another app, such as 1Password, may already be using this shortcut.")));
+                    uiText("Another app, such as 1Password, may already be using this shortcut.",
+                           "1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다.")));
     }
 #else
     window.showQuick();
@@ -194,8 +225,8 @@ int main(int argc, char* argv[])
 
             trayIcon.showMessage(
                 "peekpass",
-                uiText("peekpass가 실행 중입니다.\n%1 키로 빠른 액세스를 열 수 있습니다.",
-                       "peekpass is running.\nPress %1 to open quick access.")
+                uiText("peekpass is running.\nPress %1 to open quick access.",
+                       "peekpass가 실행 중입니다.\n%1 키로 빠른 액세스를 열 수 있습니다.")
                     .arg(AppSettings::showHotkeyText()),
                 QSystemTrayIcon::Information,
                 3500);

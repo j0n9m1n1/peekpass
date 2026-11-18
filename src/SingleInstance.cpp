@@ -1,5 +1,7 @@
 #include "SingleInstance.h"
 
+#include "I18n.h"
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QLocalSocket>
@@ -16,7 +18,10 @@ SingleInstance::SingleInstance(const QString& directory)
 SingleInstance::Result SingleInstance::start()
 {
     if (!QDir().mkpath(m_directory)) {
-        m_error = QStringLiteral("Could not create the application runtime directory.");
+        m_error = I18n::translate(
+            "SingleInstance",
+            "Could not create the application runtime directory.",
+            "애플리케이션 런타임 디렉터리를 만들지 못했습니다.");
         return Result::Error;
     }
     const QString name = QStringLiteral("peekpass-") + QString::fromLatin1(
@@ -37,7 +42,11 @@ SingleInstance::Result SingleInstance::start()
             socketError = socket.errorString();
             QThread::msleep(50);
         }
-        m_error = QStringLiteral("peekpass is already running but could not be activated: ") + socketError;
+        m_error = I18n::translate(
+                      "SingleInstance",
+                      "peekpass is already running but could not be activated: %1",
+                      "peekpass가 이미 실행 중이지만 활성화하지 못했습니다: %1")
+                      .arg(socketError);
         return Result::Error;
     }
 
