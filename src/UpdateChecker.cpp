@@ -3,6 +3,7 @@
 #include "AppSettings.h"
 #include "I18n.h"
 
+#include <QApplication>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -10,6 +11,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFrame>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -26,6 +28,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QSystemTrayIcon>
 #include <QTimer>
@@ -323,7 +326,8 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
     , m_network(new QNetworkAccessManager(this))
 {
     setWindowTitle(uiText("Software Update", "소프트웨어 업데이트"));
-    setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
+    setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    setWindowModality(Qt::ApplicationModal);
     resize(480, 390);
     setMinimumSize(430, 340);
 
@@ -671,7 +675,10 @@ void UpdateDialog::startInstallerDownload()
         }
 
         accept();
-        QTimer::singleShot(100, qApp, &QCoreApplication::quit);
+        QTimer::singleShot(100, qApp, [] {
+            QApplication::closeAllWindows();
+            QCoreApplication::quit();
+        });
     });
 }
 
@@ -812,10 +819,12 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
         reply->deleteLater();
         m_activeReply.clear();
 
+        QWidget* dialogParent = (safeParent && safeParent->isVisible()) ? safeParent.data() : nullptr;
+
         if (netError != QNetworkReply::NoError || (httpStatus != 200 && httpStatus != 0)) {
             if (interactive) {
                 QMessageBox::warning(
-                    safeParent,
+                    dialogParent,
                     uiText("Check for updates", "업데이트 확인"),
                     uiText("Could not check for updates.\n\n%1",
                            "업데이트를 확인하지 못했습니다.\n\n%1")
@@ -833,7 +842,7 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
         if (!parseError.isEmpty()) {
             if (interactive) {
                 QMessageBox::warning(
-                    safeParent,
+                    dialogParent,
                     uiText("Check for updates", "업데이트 확인"),
                     parseError);
             }
@@ -845,7 +854,7 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
         if (!info.updateAvailable) {
             if (interactive) {
                 QMessageBox::information(
-                    safeParent,
+                    dialogParent,
                     uiText("Check for updates", "업데이트 확인"),
                     uiText("You are using the latest version (v%1).",
                            "현재 최신 버전(v%1)을 사용 중입니다.")
@@ -865,7 +874,7 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
                 5000);
         }
 
-        showUpdateDialog(info, safeParent);
+        showUpdateDialog(info, dialogParent);
     });
 }
 
@@ -891,8 +900,19 @@ void UpdateChecker::showUpdateDialog(const UpdateReleaseInfo& info, QWidget* par
         return;
     }
 
-    auto* dialog = new UpdateDialog(info, parentWidget);
+    auto* dialog = new UpdateDialog(info, nullptr);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
+    if (parentWidget && parentWidget->isVisible()) {
+        const QRect parentGeo = parentWidget->frameGeometry();
+        dialog->move(
+            parentGeo.center().x() - dialog->width() / 2,
+            parentGeo.center().y() - dialog->height() / 2);
+    } else if (QScreen* screen = QGuiApplication::primaryScreen()) {
+        const QRect avail = screen->availableGeometry();
+        dialog->move(
+            avail.center().x() - dialog->width() / 2,
+            avail.center().y() - dialog->height() / 2);
+    }
     m_activeDialog = dialog;
     dialog->show();
     dialog->raise();
