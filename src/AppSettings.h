@@ -90,6 +90,11 @@ public:
     static void setAutoCheckUpdatesEnabled(bool enabled);
     static qint64 lastUpdateCheckEpochSeconds();
     static void setLastUpdateCheckEpochSeconds(qint64 epochSeconds);
+    static QString skippedUpdateVersion();
+    static void setSkippedUpdateVersion(const QString& version);
+
+    static bool notifyOnCopyEnabled();
+    static void setNotifyOnCopyEnabled(bool enabled);
 
     static QString passwordManagerType();
     static void setPasswordManagerType(const QString& type);

@@ -70,6 +70,10 @@ Press %1 to open quick access.</source>
 %1 키로 빠른 액세스를 열 수 있습니다.</translation>
     </message>
     <message>
+        <source>Sync now</source>
+        <translation>지금 동기화</translation>
+    </message>
+    <message>
         <source>Check for updates...</source>
         <translation>업데이트 확인...</translation>
     </message>
@@ -670,6 +674,12 @@ peekpass는 앱 폴더, Proton Pass 기본 설치 경로, PATH 순서로 확인�
         <source>Notes</source>
         <translation>메모</translation>
     </message>
+    <message><source>Open website</source><translation>웹사이트 열기</translation></message>
+    <message><source>Vault sync complete.</source><translation>보관함 동기화를 완료했습니다.</translation></message>
+    <message><source>Password copied. (Clears in 30s)</source><translation>비밀번호를 복사했습니다. (30초 후 자동 삭제)</translation></message>
+    <message><source>Value copied. (Clears in 30s)</source><translation>항목 값을 복사했습니다. (30초 후 자동 삭제)</translation></message>
+    <message><source>Username copied.</source><translation>사용자 이름을 복사했습니다.</translation></message>
+    <message><source>TOTP code copied. (Clears in 30s)</source><translation>TOTP 코드를 복사했습니다. (30초 후 자동 삭제)</translation></message>
     <message><source>Secure note</source><translation>보안 메모</translation></message>
     <message><source>Card details</source><translation>카드 정보</translation></message>
     <message><source>Cardholder</source><translation>카드 소유자</translation></message>
@@ -1064,6 +1074,10 @@ Esc: 닫기</translation>
         <translation>배포된 peekpass 실행 파일을 현재 Windows 사용자에 등록합니다. Qt 런타임 파일이 없는 개발 빌드는 등록할 수 없습니다.</translation>
     </message>
     <message>
+        <source>Show notification after copying</source>
+        <translation>복사 완료 알림 표시</translation>
+    </message>
+    <message>
         <source>Check for updates automatically on startup</source>
         <translation>시작 시 자동으로 업데이트 확인</translation>
     </message>
@@ -1095,8 +1109,16 @@ Esc: 닫기</translation>
         <translation>버그 수정 및 안정성 개선 사항이 포함되어 있습니다.</translation>
     </message>
     <message>
+        <source>Portable mode detected: &apos;Update now&apos; installs to the standard user folder (%LOCALAPPDATA%\Programs\peekpass). Use &apos;Release page&apos; for the portable ZIP.</source>
+        <translation>포터블 모드로 실행 중입니다. &apos;지금 업데이트&apos;를 누르면 표준 사용자 폴더(%LOCALAPPDATA%\Programs\peekpass)에 설치됩니다. 포터블 ZIP은 &apos;릴리스 페이지&apos;를 이용하세요.</translation>
+    </message>
+    <message>
         <source>Release page</source>
         <translation>릴리스 페이지</translation>
+    </message>
+    <message>
+        <source>Skip version</source>
+        <translation>이 버전 건너뛰기</translation>
     </message>
     <message>
         <source>Later</source>
@@ -1131,8 +1153,24 @@ Esc: 닫기</translation>
         <translation>다운로드에 실패했습니다: %1</translation>
     </message>
     <message>
+        <source>Verifying installer checksum (SHA-256)...</source>
+        <translation>설치 파일 무결성(SHA-256)을 검증하는 중입니다...</translation>
+    </message>
+    <message>
+        <source>Could not download release checksums for verification.</source>
+        <translation>무결성 검증용 체크섬 파일을 다운로드하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Installer entry was not found in SHA256SUMS.txt.</source>
+        <translation>SHA256SUMS.txt에서 설치 파일 해시를 찾지 못했습니다.</translation>
+    </message>
+    <message>
         <source>Downloaded installer file could not be verified.</source>
         <translation>다운로드된 설치 파일을 검증하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>SHA-256 verification failed. The downloaded file may be corrupted.</source>
+        <translation>SHA-256 무결성 검증에 실패했습니다. 다운로드된 파일이 손상되었을 수 있습니다.</translation>
     </message>
     <message>
         <source>Could not prepare the installer executable.</source>

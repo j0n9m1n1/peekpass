@@ -45,9 +45,10 @@ This project is still early, Windows-first software.
   show/hide secret toggles, live TOTP code and countdown timer, website open/copy
   actions, notes copy, and formatted provider metadata where available.
 - Optional web favicon loading for search results.
-- System tray menu with open, lock, settings, check for updates, and quit.
-- Built-in update checker (via GitHub Releases) with one-click in-app installer
-  download and automatic restart, plus optional startup update checks.
+- System tray menu with open, sync now, lock, settings, check for updates, and quit.
+- Built-in update checker (via GitHub Releases) with SHA-256 verification,
+  one-click in-app installer download and automatic restart, version skip,
+  portable-mode notice, and optional startup update checks.
 - Settings actions to log out of the selected password manager or reset local
   peekpass data and return to first-run state.
 - Configurable hotkey, shortcut preset, quick window size, position, opacity, corner style, theme, font, language, result fields, result count, auto-sync interval, and focus-loss behavior.
@@ -216,9 +217,9 @@ To package a local Release build with its Qt runtime and translations, run:
 .\packaging\windows\package.ps1 -QtDir C:\Qt\6.12.0\mingw_64
 ```
 
-This creates `dist/peekpass-0.3.6-win64-setup.exe` and the portable ZIP. The
-script discovers Inno Setup 6 or 7 in system and per-user installation directories;
-`-IsccPath` overrides it.
+This creates `dist/peekpass-0.3.7-win64-setup.exe`, the portable ZIP, and
+`dist/SHA256SUMS.txt`. The script discovers Inno Setup 6 or 7 in system and
+per-user installation directories; `-IsccPath` overrides it.
 
 To invoke Inno Setup directly, first assemble a Release deployment folder with
 `windeployqt` and copy the app translations, `README.md`, and `LICENSE` into it.
@@ -227,8 +228,8 @@ output directories (adjust the version to match `CMakeLists.txt`):
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-  "/DAppVersion=0.3.6" `
-  "/DStageDir=$PWD\dist\peekpass-v0.3.6-win64" `
+  "/DAppVersion=0.3.7" `
+  "/DStageDir=$PWD\dist\peekpass-v0.3.7-win64" `
   "/DInstallerOutputDir=$PWD\dist" `
   ".\packaging\windows\peekpass.iss"
 ```

@@ -67,6 +67,7 @@ private:
     QSpinBox* m_reopenRetentionSpin = nullptr;
     QSpinBox* m_autoSyncIntervalSpin = nullptr;
     QCheckBox* m_closeOnFocusLossCheck = nullptr;
+    QCheckBox* m_notifyOnCopyCheck = nullptr;
     QCheckBox* m_credentialSessionStorageCheck = nullptr;
     QCheckBox* m_startOnLoginCheck = nullptr;
     QCheckBox* m_autoCheckUpdatesCheck = nullptr;

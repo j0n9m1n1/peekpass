@@ -250,6 +250,9 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     m_closeOnFocusLossCheck = new QCheckBox(uiText("Close on focus loss", "포커스 해제 시 닫기"), this);
     m_closeOnFocusLossCheck->setChecked(AppSettings::closeOnFocusLoss());
 
+    m_notifyOnCopyCheck = new QCheckBox(uiText("Show notification after copying", "복사 완료 알림 표시"), this);
+    m_notifyOnCopyCheck->setChecked(AppSettings::notifyOnCopyEnabled());
+
     m_credentialSessionStorageCheck = new QCheckBox(
         uiText("Secure session storage", "보안 저장소에 세션 저장"),
         this);
@@ -440,6 +443,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     behaviorForm->addRow(uiText("Keep search", "검색 유지"), m_reopenRetentionSpin);
     behaviorForm->addRow(uiText("Auto sync", "자동 동기화"), m_autoSyncIntervalSpin);
     behaviorForm->addRow(m_closeOnFocusLossCheck);
+    behaviorForm->addRow(m_notifyOnCopyCheck);
 
     auto* securityForm = makeGroup(uiText("Security and Startup", "보안/시작"), behaviorTab);
     securityForm->addRow(m_credentialSessionStorageCheck);
@@ -734,6 +738,7 @@ void SettingsDialog::saveAndAccept()
     AppSettings::setReopenRetentionSeconds(m_reopenRetentionSpin->value());
     AppSettings::setAutoSyncIntervalMinutes(m_autoSyncIntervalSpin->value());
     AppSettings::setCloseOnFocusLoss(m_closeOnFocusLossCheck->isChecked());
+    AppSettings::setNotifyOnCopyEnabled(m_notifyOnCopyCheck->isChecked());
     AppSettings::setCredentialSessionStorageEnabled(m_credentialSessionStorageCheck->isChecked());
     AppSettings::setAutoCheckUpdatesEnabled(m_autoCheckUpdatesCheck->isChecked());
     AppSettings::setBwProgramOverride(m_bwPathEdit->text());

@@ -52,6 +52,8 @@ const char* CredentialSessionStorageEnabledKey = "security/credentialSessionStor
 const char* StartOnLoginKey = "system/startOnLogin";
 const char* AutoCheckUpdatesEnabledKey = "updates/autoCheckEnabled";
 const char* LastUpdateCheckEpochSecondsKey = "updates/lastCheckEpochSeconds";
+const char* SkippedUpdateVersionKey = "updates/skippedVersion";
+const char* NotifyOnCopyEnabledKey = "ui/notifyOnCopyEnabled";
 const char* StartOnLoginName = "peekpass";
 const char* OlderStartOnLoginName = "PeekWarden";
 const char* WindowsRunKey = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
@@ -609,6 +611,26 @@ qint64 AppSettings::lastUpdateCheckEpochSeconds()
 void AppSettings::setLastUpdateCheckEpochSeconds(qint64 epochSeconds)
 {
     QSettings().setValue(LastUpdateCheckEpochSecondsKey, qMax<qint64>(0, epochSeconds));
+}
+
+QString AppSettings::skippedUpdateVersion()
+{
+    return QSettings().value(SkippedUpdateVersionKey).toString().trimmed();
+}
+
+void AppSettings::setSkippedUpdateVersion(const QString& version)
+{
+    QSettings().setValue(SkippedUpdateVersionKey, version.trimmed());
+}
+
+bool AppSettings::notifyOnCopyEnabled()
+{
+    return QSettings().value(NotifyOnCopyEnabledKey, true).toBool();
+}
+
+void AppSettings::setNotifyOnCopyEnabled(bool enabled)
+{
+    QSettings().setValue(NotifyOnCopyEnabledKey, enabled);
 }
 
 QString AppSettings::passwordManagerType()

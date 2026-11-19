@@ -39,11 +39,13 @@ public:
     void preloadVault();
     void showQuick();
     void showSettings();
+    void syncVaultNow();
     QString passwordManagerName() const;
     bool lockVault(QString* errorMessage = nullptr);
     bool logoutVault(QString* errorMessage = nullptr);
     void applySettings();
     void setSettingsChangedCallback(std::function<void()> callback);
+    void setNotificationCallback(std::function<void(const QString&)> callback);
 
 private:
     friend class QuickWindowTestAccess;
@@ -86,6 +88,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
 
 private:
     void openSettings();
@@ -124,6 +127,7 @@ private:
     void updateAutoSyncTimer();
     void reloadPasswordManager();
     void continuePendingPreload();
+    void schedulePreloadRetry(int delayMs = 30000);
     void requestFaviconForRow(QListWidgetItem* row, const VaultItem& item);
     void fetchFavicon(const QString& host, const QUrl& url);
     void handleFaviconFinished(QNetworkReply* reply);
@@ -133,10 +137,11 @@ private:
     void copyPassword(QListWidgetItem* item);
     void copyUsername(QListWidgetItem* item);
     void copyTotp(QListWidgetItem* item);
+    void openItemWebsite(QListWidgetItem* item);
     void showItemDetails(QListWidgetItem* item);
     void closeDetailWindows();
     void copyToClipboard(const QString& text, bool sensitive);
-    void copyTextAndHide(const QString& text, bool sensitive);
+    void copyTextAndHide(const QString& text, bool sensitive, const QString& notificationMessage = {});
     void beginWindowDrag(QMouseEvent* event);
     bool updateWindowDrag(QMouseEvent* event);
     void finishWindowDrag();
@@ -181,6 +186,7 @@ private:
     QTimer m_debounce;
     QTimer m_refreshTimer;
     QTimer m_sessionTimer;
+    QTimer m_preloadRetryTimer;
     std::shared_ptr<PasswordManager> m_passwordManager = std::make_shared<PasswordManager>();
     QFutureWatcher<PrepareResult> m_prepareWatcher;
     QFutureWatcher<AuthResult> m_authWatcher;
@@ -194,6 +200,8 @@ private:
     bool m_quietItemLoad = false;
     bool m_syncing = false;
     bool m_preloadPending = false;
+    bool m_silentPreloadRetry = false;
+    bool m_intentionallyLocked = false;
     bool m_resetting = false;
     bool m_backgroundSessionCheck = false;
     bool m_executingVerifiedAction = false;
@@ -210,4 +218,5 @@ private:
     QPoint m_dragOffset;
     QPoint m_dragStartPosition;
     std::function<void()> m_settingsChanged;
+    std::function<void(const QString&)> m_notificationCallback;
 };

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(peekpass VERSION 0.3.6 LANGUAGES CXX)
+project(peekpass VERSION 0.3.7 LANGUAGES CXX)
 
 include(CTest)
 
@@ -43,7 +43,7 @@ add_library(peekpass_core STATIC
 
 target_include_directories(peekpass_core PUBLIC src)
 target_link_libraries(peekpass_core PUBLIC Qt6::Widgets Qt6::Concurrent Qt6::Network)
-target_compile_definitions(peekpass_core PUBLIC PEEKPASS_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(peekpass_core PUBLIC $<$<COMPILE_LANGUAGE:CXX>:PEEKPASS_VERSION="${PROJECT_VERSION}">)
 qt_add_resources(peekpass_core "peekpass_icons"
     PREFIX "/"
     BASE "src"
@@ -53,7 +53,32 @@ qt_add_resources(peekpass_core "peekpass_icons"
         src/icons/chevron-up-dark.png
         src/icons/chevron-up-light.png
 )
-qt_add_executable(peekpass WIN32 src/main.cpp)
+set(PEEKPASS_APP_SOURCES src/main.cpp)
+if(WIN32)
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/icons/peekpass.ico"
+        "${CMAKE_CURRENT_BINARY_DIR}/peekpass.ico"
+        COPYONLY
+    )
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/peekpass.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/peekpass.rc"
+        @ONLY
+    )
+    if(MINGW)
+        add_custom_command(
+            OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/peekpass_res.o"
+            COMMAND "${CMAKE_RC_COMPILER}" -O coff -i "peekpass.rc" -o "peekpass_res.o"
+            DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/peekpass.rc" "${CMAKE_CURRENT_BINARY_DIR}/peekpass.ico"
+            WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+            VERBATIM
+        )
+        list(APPEND PEEKPASS_APP_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/peekpass_res.o")
+    else()
+        list(APPEND PEEKPASS_APP_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/peekpass.rc")
+    endif()
+endif()
+qt_add_executable(peekpass WIN32 ${PEEKPASS_APP_SOURCES})
 target_link_libraries(peekpass PRIVATE peekpass_core)
 
 set(PEEKPASS_TRANSLATIONS

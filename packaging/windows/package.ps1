@@ -73,7 +73,15 @@ Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
 $installer = Join-Path $output "peekpass-$version-win64-setup.exe"
 if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw 'Installer executable was not created.' }
+$installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+$zipHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$checksumsPath = Join-Path $output 'SHA256SUMS.txt'
+@(
+    "$installerHash  $(Split-Path -Leaf $installer)"
+    "$zipHash  $(Split-Path -Leaf $zip)"
+) | Set-Content -LiteralPath $checksumsPath -Encoding ascii
 Get-FileHash -LiteralPath $installer -Algorithm SHA256 | Format-List
 Write-Output "Installer: $installer"
 Write-Output "Portable ZIP: $zip"
+Write-Output "Checksums: $checksumsPath"
 Write-Output "Staging folder: $stage"

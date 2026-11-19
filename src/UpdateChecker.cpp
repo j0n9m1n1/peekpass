@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
@@ -27,6 +28,7 @@
 #include <QProcess>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScreen>
 #include <QStandardPaths>
@@ -39,6 +41,7 @@
 namespace
 {
 constexpr qint64 AutoCheckIntervalSeconds = 12 * 60 * 60;
+constexpr qint64 OldTempInstallerAgeSeconds = 5 * 60;
 const char* DefaultLatestReleaseApiUrl = "https://api.github.com/repos/j0n9m1n1/peekpass/releases/latest";
 const char* DefaultReleasesPageUrl = "https://github.com/j0n9m1n1/peekpass/releases/latest";
 
@@ -88,6 +91,18 @@ QString formatMegabytes(qint64 bytes)
     return QString::number(mb, 'f', 1) + QStringLiteral(" MB");
 }
 
+QString computeFileSha256Hex(const QString& filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return {};
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&file))
+        return {};
+    return QString::fromLatin1(hash.result().toHex()).toLower();
+}
+
 QString updateDialogStyleSheet()
 {
     QString fontFamily = AppSettings::quickFontFamily();
@@ -134,6 +149,11 @@ QString updateDialogStyleSheet()
                 font-size: 13px;
                 font-weight: 800;
             }
+            #updatePortableNote {
+                color: #57606a;
+                font-size: 11px;
+                font-weight: 600;
+            }
             #updateStatusLabel {
                 color: #57606a;
                 font-size: 12px;
@@ -164,7 +184,7 @@ QString updateDialogStyleSheet()
                 color: #24292f;
                 border: 1px solid #d0d7de;
                 border-radius: 6px;
-                padding: 6px 14px;
+                padding: 6px 12px;
                 font-size: 12px;
                 font-weight: 700;
             }
@@ -180,7 +200,7 @@ QString updateDialogStyleSheet()
                 background: #1f72c7;
                 color: #ffffff;
                 border: 1px solid #1f72c7;
-                padding: 6px 16px;
+                padding: 6px 14px;
             }
             QPushButton#primaryUpdateButton:hover {
                 background: #195fa8;
@@ -246,6 +266,11 @@ QString updateDialogStyleSheet()
             font-size: 13px;
             font-weight: 800;
         }
+        #updatePortableNote {
+            color: #9aa4b2;
+            font-size: 11px;
+            font-weight: 600;
+        }
         #updateStatusLabel {
             color: #b7c0cc;
             font-size: 12px;
@@ -276,7 +301,7 @@ QString updateDialogStyleSheet()
             color: #eef2f6;
             border: 1px solid #353c47;
             border-radius: 6px;
-            padding: 6px 14px;
+            padding: 6px 12px;
             font-size: 12px;
             font-weight: 700;
         }
@@ -292,7 +317,7 @@ QString updateDialogStyleSheet()
             background: #1f72c7;
             color: #ffffff;
             border: 1px solid #2f81f7;
-            padding: 6px 16px;
+            padding: 6px 14px;
         }
         QPushButton#primaryUpdateButton:hover {
             background: #2a82dc;
@@ -328,8 +353,8 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
     setWindowTitle(uiText("Software Update", "소프트웨어 업데이트"));
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     setWindowModality(Qt::ApplicationModal);
-    resize(480, 390);
-    setMinimumSize(430, 340);
+    resize(510, 410);
+    setMinimumSize(460, 360);
 
     auto* rootLayout = new QVBoxLayout(this);
     rootLayout->setContentsMargins(16, 12, 16, 14);
@@ -394,6 +419,16 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
     notesLayout->addWidget(notesEdit, 1);
     rootLayout->addWidget(notesCard, 1);
 
+    if (!UpdateChecker::isInstalledBuild()) {
+        auto* portableNote = new QLabel(
+            uiText("Portable mode detected: 'Update now' installs to the standard user folder (%LOCALAPPDATA%\\Programs\\peekpass). Use 'Release page' for the portable ZIP.",
+                   "포터블 모드로 실행 중입니다. '지금 업데이트'를 누르면 표준 사용자 폴더(%LOCALAPPDATA%\\Programs\\peekpass)에 설치됩니다. 포터블 ZIP은 '릴리스 페이지'를 이용하세요."),
+            this);
+        portableNote->setObjectName(QStringLiteral("updatePortableNote"));
+        portableNote->setWordWrap(true);
+        rootLayout->addWidget(portableNote);
+    }
+
     m_progressBar = new QProgressBar(this);
     m_progressBar->setRange(0, 100);
     m_progressBar->setValue(0);
@@ -409,7 +444,7 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
 
     auto* buttonLayout = new QHBoxLayout;
     buttonLayout->setContentsMargins(0, 2, 0, 0);
-    buttonLayout->setSpacing(8);
+    buttonLayout->setSpacing(6);
 
     m_releasePageButton = new QPushButton(uiText("Release page", "릴리스 페이지"), this);
     m_releasePageButton->setCursor(Qt::PointingHandCursor);
@@ -419,6 +454,13 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
                            : m_info.releaseUrl);
         if (url.isValid())
             QDesktopServices::openUrl(url);
+    });
+
+    m_skipButton = new QPushButton(uiText("Skip version", "이 버전 건너뛰기"), this);
+    m_skipButton->setCursor(Qt::PointingHandCursor);
+    connect(m_skipButton, &QPushButton::clicked, this, [this] {
+        AppSettings::setSkippedUpdateVersion(m_info.latestVersion);
+        reject();
     });
 
     m_laterButton = new QPushButton(uiText("Later", "나중에"), this);
@@ -432,6 +474,7 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
     connect(m_updateButton, &QPushButton::clicked, this, &UpdateDialog::startInstallerDownload);
 
     buttonLayout->addWidget(m_releasePageButton);
+    buttonLayout->addWidget(m_skipButton);
     buttonLayout->addStretch(1);
     buttonLayout->addWidget(m_laterButton);
     buttonLayout->addWidget(m_updateButton);
@@ -507,7 +550,7 @@ void UpdateDialog::updateWindowMask()
 
 void UpdateDialog::startInstallerDownload()
 {
-    if (m_downloadReply)
+    if (m_downloadReply || m_checksumReply)
         return;
 
     const QUrl installerUrl(m_info.installerUrl);
@@ -543,6 +586,7 @@ void UpdateDialog::startInstallerDownload()
     }
 
     m_updateButton->setEnabled(false);
+    m_skipButton->setEnabled(false);
     m_laterButton->setText(uiText("Cancel", "취소"));
     m_progressBar->setVisible(true);
     m_progressBar->setRange(0, 100);
@@ -607,6 +651,7 @@ void UpdateDialog::startInstallerDownload()
         if (netError != QNetworkReply::NoError || (httpStatus != 200 && httpStatus != 0)) {
             cancelDownload();
             m_updateButton->setEnabled(true);
+            m_skipButton->setEnabled(true);
             m_laterButton->setText(uiText("Later", "나중에"));
             m_progressBar->setVisible(false);
             m_statusLabel->setVisible(true);
@@ -615,70 +660,156 @@ void UpdateDialog::startInstallerDownload()
             return;
         }
 
-        QFile verifyFile(m_partFilePath);
-        const qint64 fileSize = verifyFile.size();
-        QByteArray header;
-        if (verifyFile.open(QIODevice::ReadOnly)) {
-            header = verifyFile.read(2);
-            verifyFile.close();
-        }
-
-        if (header != QByteArrayLiteral("MZ")
-            || fileSize < 4096
-            || (m_info.installerSize > 0 && fileSize != m_info.installerSize)) {
-            cancelDownload();
-            m_updateButton->setEnabled(true);
-            m_laterButton->setText(uiText("Later", "나중에"));
-            m_progressBar->setVisible(false);
-            m_statusLabel->setVisible(true);
+        const QUrl checksumUrl(m_info.checksumsUrl);
+        if (isTrustedDownloadUrl(checksumUrl)) {
             m_statusLabel->setText(
-                uiText("Downloaded installer file could not be verified.",
-                       "다운로드된 설치 파일을 검증하지 못했습니다."));
+                uiText("Verifying installer checksum (SHA-256)...",
+                       "설치 파일 무결성(SHA-256)을 검증하는 중입니다..."));
+            QNetworkRequest checksumRequest(checksumUrl);
+            checksumRequest.setHeader(
+                QNetworkRequest::UserAgentHeader,
+                QStringLiteral("peekpass/%1").arg(QCoreApplication::applicationVersion()));
+            checksumRequest.setAttribute(
+                QNetworkRequest::RedirectPolicyAttribute,
+                QNetworkRequest::NoLessSafeRedirectPolicy);
+
+            m_checksumReply = m_network->get(checksumRequest);
+            QNetworkReply* hashReply = m_checksumReply.data();
+            connect(hashReply, &QNetworkReply::finished, this, [this, hashReply] {
+                const QByteArray payload = hashReply->readAll();
+                const QNetworkReply::NetworkError hashError = hashReply->error();
+                const int hashHttpStatus = hashReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                hashReply->deleteLater();
+                m_checksumReply.clear();
+
+                if (hashError == QNetworkReply::OperationCanceledError) {
+                    cancelDownload();
+                    return;
+                }
+
+                if (hashError != QNetworkReply::NoError || (hashHttpStatus != 200 && hashHttpStatus != 0)) {
+                    cancelDownload();
+                    m_updateButton->setEnabled(true);
+                    m_skipButton->setEnabled(true);
+                    m_laterButton->setText(uiText("Later", "나중에"));
+                    m_progressBar->setVisible(false);
+                    m_statusLabel->setVisible(true);
+                    m_statusLabel->setText(
+                        uiText("Could not download release checksums for verification.",
+                               "무결성 검증용 체크섬 파일을 다운로드하지 못했습니다."));
+                    return;
+                }
+
+                const QString expectedHash = UpdateChecker::parseSha256SumForFile(
+                    payload,
+                    QFileInfo(m_finalInstallerPath).fileName());
+                if (expectedHash.isEmpty()) {
+                    cancelDownload();
+                    m_updateButton->setEnabled(true);
+                    m_skipButton->setEnabled(true);
+                    m_laterButton->setText(uiText("Later", "나중에"));
+                    m_progressBar->setVisible(false);
+                    m_statusLabel->setVisible(true);
+                    m_statusLabel->setText(
+                        uiText("Installer entry was not found in SHA256SUMS.txt.",
+                               "SHA256SUMS.txt에서 설치 파일 해시를 찾지 못했습니다."));
+                    return;
+                }
+
+                verifyAndLaunchInstaller(expectedHash);
+            });
             return;
         }
 
-        if (m_partFile) {
-            delete m_partFile;
-            m_partFile = nullptr;
-        }
+        verifyAndLaunchInstaller({});
+    });
+}
 
-        QFile::remove(m_finalInstallerPath);
-        if (!QFile::rename(m_partFilePath, m_finalInstallerPath)) {
-            cancelDownload();
-            m_updateButton->setEnabled(true);
-            m_laterButton->setText(uiText("Later", "나중에"));
-            m_progressBar->setVisible(false);
-            m_statusLabel->setVisible(true);
-            m_statusLabel->setText(
-                uiText("Could not prepare the installer executable.",
-                       "설치 실행 파일을 준비하지 못했습니다."));
-            return;
-        }
+void UpdateDialog::verifyAndLaunchInstaller(const QString& expectedSha256)
+{
+    QFile verifyFile(m_partFilePath);
+    const qint64 fileSize = verifyFile.size();
+    QByteArray header;
+    if (verifyFile.open(QIODevice::ReadOnly)) {
+        header = verifyFile.read(2);
+        verifyFile.close();
+    }
 
-        m_progressBar->setRange(0, 100);
-        m_progressBar->setValue(100);
+    if (header != QByteArrayLiteral("MZ")
+        || fileSize < 4096
+        || (m_info.installerSize > 0 && fileSize != m_info.installerSize)) {
+        cancelDownload();
+        m_updateButton->setEnabled(true);
+        m_skipButton->setEnabled(true);
+        m_laterButton->setText(uiText("Later", "나중에"));
+        m_progressBar->setVisible(false);
+        m_statusLabel->setVisible(true);
         m_statusLabel->setText(
-            uiText("Launching installer and restarting peekpass...",
-                   "설치 프로그램을 실행하고 peekpass를 다시 시작합니다..."));
+            uiText("Downloaded installer file could not be verified.",
+                   "다운로드된 설치 파일을 검증하지 못했습니다."));
+        return;
+    }
 
-        const bool started = QProcess::startDetached(
-            m_finalInstallerPath,
-            {QStringLiteral("/SILENT"), QStringLiteral("/CLOSEAPPLICATIONS")});
-
-        if (!started) {
+    if (!expectedSha256.isEmpty()) {
+        const QString actualSha256 = computeFileSha256Hex(m_partFilePath);
+        if (actualSha256.isEmpty() || actualSha256.compare(expectedSha256, Qt::CaseInsensitive) != 0) {
+            cancelDownload();
             m_updateButton->setEnabled(true);
+            m_skipButton->setEnabled(true);
             m_laterButton->setText(uiText("Later", "나중에"));
+            m_progressBar->setVisible(false);
+            m_statusLabel->setVisible(true);
             m_statusLabel->setText(
-                uiText("Could not start the installer automatically.",
-                       "설치 프로그램을 자동으로 실행하지 못했습니다."));
+                uiText("SHA-256 verification failed. The downloaded file may be corrupted.",
+                       "SHA-256 무결성 검증에 실패했습니다. 다운로드된 파일이 손상되었을 수 있습니다."));
             return;
         }
+    }
 
-        accept();
-        QTimer::singleShot(100, qApp, [] {
-            QApplication::closeAllWindows();
-            QCoreApplication::quit();
-        });
+    if (m_partFile) {
+        delete m_partFile;
+        m_partFile = nullptr;
+    }
+
+    QFile::remove(m_finalInstallerPath);
+    if (!QFile::rename(m_partFilePath, m_finalInstallerPath)) {
+        cancelDownload();
+        m_updateButton->setEnabled(true);
+        m_skipButton->setEnabled(true);
+        m_laterButton->setText(uiText("Later", "나중에"));
+        m_progressBar->setVisible(false);
+        m_statusLabel->setVisible(true);
+        m_statusLabel->setText(
+            uiText("Could not prepare the installer executable.",
+                   "설치 실행 파일을 준비하지 못했습니다."));
+        return;
+    }
+
+    AppSettings::setSkippedUpdateVersion({});
+    m_progressBar->setRange(0, 100);
+    m_progressBar->setValue(100);
+    m_statusLabel->setText(
+        uiText("Launching installer and restarting peekpass...",
+               "설치 프로그램을 실행하고 peekpass를 다시 시작합니다..."));
+
+    const bool started = QProcess::startDetached(
+        m_finalInstallerPath,
+        {QStringLiteral("/SILENT"), QStringLiteral("/CLOSEAPPLICATIONS")});
+
+    if (!started) {
+        m_updateButton->setEnabled(true);
+        m_skipButton->setEnabled(true);
+        m_laterButton->setText(uiText("Later", "나중에"));
+        m_statusLabel->setText(
+            uiText("Could not start the installer automatically.",
+                   "설치 프로그램을 자동으로 실행하지 못했습니다."));
+        return;
+    }
+
+    accept();
+    QTimer::singleShot(100, qApp, [] {
+        QApplication::closeAllWindows();
+        QCoreApplication::quit();
     });
 }
 
@@ -687,6 +818,13 @@ void UpdateDialog::cancelDownload()
     if (m_downloadReply) {
         QNetworkReply* reply = m_downloadReply.data();
         m_downloadReply.clear();
+        reply->abort();
+        reply->deleteLater();
+    }
+
+    if (m_checksumReply) {
+        QNetworkReply* reply = m_checksumReply.data();
+        m_checksumReply.clear();
         reply->abort();
         reply->deleteLater();
     }
@@ -714,6 +852,56 @@ UpdateChecker::UpdateChecker(QObject* parent)
     : QObject(parent)
     , m_network(new QNetworkAccessManager(this))
 {
+}
+
+bool UpdateChecker::isInstalledBuild()
+{
+#ifdef Q_OS_WIN
+    const QDir appDir(QCoreApplication::applicationDirPath());
+    return QFileInfo::exists(appDir.filePath(QStringLiteral("unins000.exe")));
+#else
+    return false;
+#endif
+}
+
+void UpdateChecker::cleanupOldInstallers()
+{
+    const QString tempDirPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+    if (tempDirPath.isEmpty())
+        return;
+
+    const QDir tempDir(tempDirPath);
+    const QFileInfoList candidates = tempDir.entryInfoList(
+        {QStringLiteral("peekpass-*-setup.exe"), QStringLiteral("peekpass-*-setup.exe.part")},
+        QDir::Files);
+    const QDateTime now = QDateTime::currentDateTimeUtc();
+    for (const QFileInfo& entry : candidates) {
+        const qint64 ageSeconds = entry.lastModified().toUTC().secsTo(now);
+        if (ageSeconds >= OldTempInstallerAgeSeconds)
+            QFile::remove(entry.absoluteFilePath());
+    }
+}
+
+QString UpdateChecker::parseSha256SumForFile(const QByteArray& checksumsText, const QString& fileName)
+{
+    const QString targetName = QFileInfo(fileName.trimmed()).fileName();
+    if (targetName.isEmpty())
+        return {};
+
+    static const QRegularExpression lineRegex(
+        QStringLiteral("^\\s*([0-9a-fA-F]{64})\\s+\\*?(.+?)\\s*$"));
+    const QStringList lines = QString::fromUtf8(checksumsText).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    for (const QString& rawLine : lines) {
+        const QRegularExpressionMatch match = lineRegex.match(rawLine.trimmed());
+        if (!match.hasMatch())
+            continue;
+
+        const QString digest = match.captured(1).toLower();
+        const QString entryName = QFileInfo(match.captured(2).trimmed()).fileName();
+        if (entryName.compare(targetName, Qt::CaseInsensitive) == 0)
+            return digest;
+    }
+    return {};
 }
 
 UpdateReleaseInfo UpdateChecker::parseLatestReleaseJson(
@@ -763,6 +951,10 @@ UpdateReleaseInfo UpdateChecker::parseLatestReleaseJson(
                 info.installerUrl = downloadUrl;
                 info.installerSize = size;
             }
+        } else if ((name.compare(QStringLiteral("SHA256SUMS.txt"), Qt::CaseInsensitive) == 0
+                    || name.endsWith(QStringLiteral(".sha256"), Qt::CaseInsensitive))
+                   && isTrustedDownloadUrl(QUrl(downloadUrl))) {
+            info.checksumsUrl = downloadUrl;
         } else if (name.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive)
                    && isTrustedDownloadUrl(QUrl(downloadUrl))) {
             info.portableZipUrl = downloadUrl;
@@ -862,6 +1054,9 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
             }
             return;
         }
+
+        if (!interactive && info.latestVersion == AppSettings::skippedUpdateVersion())
+            return;
 
         m_lastAvailableInfo = info;
         if (!interactive && safeTray && safeTray->isVisible()) {

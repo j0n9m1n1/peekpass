@@ -77,6 +77,7 @@ int main(int argc, char* argv[])
         return 1;
     }
     AppSettings::migratePreviousSettings();
+    UpdateChecker::cleanupOldInstallers();
 
     QTranslator appTranslator;
     QTranslator qtTranslator;
@@ -109,6 +110,7 @@ int main(int argc, char* argv[])
 
     QMenu trayMenu;
     QAction* openAction = trayMenu.addAction(QString());
+    QAction* syncAction = trayMenu.addAction(QString());
     QAction* lockAction = trayMenu.addAction(QString());
     trayMenu.addSeparator();
     QAction* settingsAction = trayMenu.addAction(QString());
@@ -116,8 +118,13 @@ int main(int argc, char* argv[])
     trayMenu.addSeparator();
     QAction* quitAction = trayMenu.addAction(QString());
 
+    QSystemTrayIcon trayIcon;
+    trayIcon.setIcon(appIcon);
+    trayIcon.setContextMenu(&trayMenu);
+
     const auto updateTrayTexts = [&] {
         openAction->setText(uiText("Open", "열기"));
+        syncAction->setText(uiText("Sync now", "지금 동기화"));
         if (window.passwordManagerName() == QStringLiteral("Proton Pass"))
             lockAction->setText(uiText("Log out", "로그아웃"));
         else
@@ -125,16 +132,24 @@ int main(int argc, char* argv[])
         settingsAction->setText(uiText("Settings", "설정"));
         checkUpdateAction->setText(uiText("Check for updates...", "업데이트 확인..."));
         quitAction->setText(uiText("Quit", "종료"));
+        trayIcon.setToolTip(
+            QStringLiteral("peekpass v%1 (%2)")
+                .arg(QCoreApplication::applicationVersion(), window.passwordManagerName()));
     };
     updateTrayTexts();
 
-    QSystemTrayIcon trayIcon;
-    trayIcon.setIcon(appIcon);
-    trayIcon.setToolTip("peekpass");
-    trayIcon.setContextMenu(&trayMenu);
+    window.setNotificationCallback([&trayIcon](const QString& message) {
+        if (!trayIcon.isVisible() || message.trimmed().isEmpty())
+            return;
+        trayIcon.showMessage(QStringLiteral("peekpass"), message, QSystemTrayIcon::Information, 2000);
+    });
 
     QObject::connect(openAction, &QAction::triggered, &window, [&window] {
         window.showQuick();
+    });
+
+    QObject::connect(syncAction, &QAction::triggered, &window, [&window] {
+        window.syncVaultNow();
     });
 
     QObject::connect(lockAction, &QAction::triggered, &window, [&window, &trayIcon] {

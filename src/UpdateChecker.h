@@ -26,6 +26,7 @@ struct UpdateReleaseInfo
     QString installerUrl;
     QString installerName;
     qint64 installerSize = 0;
+    QString checksumsUrl;
     QString portableZipUrl;
     QString releaseNotes;
     bool updateAvailable = false;
@@ -51,11 +52,13 @@ private:
     void applyDialogStyle();
     void updateWindowMask();
     void startInstallerDownload();
+    void verifyAndLaunchInstaller(const QString& expectedSha256);
     void cancelDownload();
 
     UpdateReleaseInfo m_info;
     QNetworkAccessManager* m_network = nullptr;
     QPointer<QNetworkReply> m_downloadReply;
+    QPointer<QNetworkReply> m_checksumReply;
     QFile* m_partFile = nullptr;
     QString m_partFilePath;
     QString m_finalInstallerPath;
@@ -63,6 +66,7 @@ private:
     QProgressBar* m_progressBar = nullptr;
     QPushButton* m_updateButton = nullptr;
     QPushButton* m_releasePageButton = nullptr;
+    QPushButton* m_skipButton = nullptr;
     QPushButton* m_laterButton = nullptr;
     bool m_dragging = false;
     QPoint m_dragOffset;
@@ -80,6 +84,10 @@ public:
     void checkForUpdates(bool interactive, QWidget* parentWidget = nullptr, QSystemTrayIcon* trayIcon = nullptr);
     void checkOnStartupIfDue(QWidget* parentWidget = nullptr, QSystemTrayIcon* trayIcon = nullptr);
     void showUpdateDialog(const UpdateReleaseInfo& info, QWidget* parentWidget = nullptr);
+
+    static bool isInstalledBuild();
+    static void cleanupOldInstallers();
+    static QString parseSha256SumForFile(const QByteArray& checksumsText, const QString& fileName);
 
     static UpdateReleaseInfo parseLatestReleaseJson(
         const QByteArray& jsonPayload,

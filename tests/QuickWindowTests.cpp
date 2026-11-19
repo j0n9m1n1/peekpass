@@ -157,6 +157,13 @@ public:
         qputenv("PEEKPASS_FAKE_PASS_MODE", "list-error");
         window.startItemLoad(true, true);
         check(until([&] { return !window.m_itemsReady; }), "Failed background refresh retained vault data.");
+        check(window.m_preloadRetryTimer.isActive(),
+            "Failed background refresh did not schedule automatic preload recovery.");
+        qunsetenv("PEEKPASS_FAKE_PASS_MODE");
+        window.hide();
+        window.schedulePreloadRetry(0);
+        check(until([&] { return window.m_itemsReady && !window.m_cachedItems.isEmpty(); }),
+            "Automatic background preload recovery did not reload the vault cache.");
 
         seed(window);
         snapshot(window, QStringLiteral("search-dark"));
@@ -241,19 +248,24 @@ public:
         window.hide();
 
         const QByteArray releasePayload = R"({
-            "tag_name": "v0.3.6",
-            "html_url": "https://github.com/j0n9m1n1/peekpass/releases/tag/v0.3.6",
-            "body": "- Added one-click update installer\n- Improved item details",
+            "tag_name": "v0.3.7",
+            "html_url": "https://github.com/j0n9m1n1/peekpass/releases/tag/v0.3.7",
+            "body": "- Added SHA-256 verification and icon resource\n- Added automatic background preload recovery",
             "assets": [
                 {
-                    "name": "peekpass-v0.3.6-win64.zip",
-                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.6/peekpass-v0.3.6-win64.zip",
+                    "name": "peekpass-v0.3.7-win64.zip",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.7/peekpass-v0.3.7-win64.zip",
                     "size": 123456
                 },
                 {
-                    "name": "peekpass-0.3.6-win64-setup.exe",
-                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.6/peekpass-0.3.6-win64-setup.exe",
+                    "name": "peekpass-0.3.7-win64-setup.exe",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.7/peekpass-0.3.7-win64-setup.exe",
                     "size": 654321
+                },
+                {
+                    "name": "SHA256SUMS.txt",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.7/SHA256SUMS.txt",
+                    "size": 256
                 }
             ]
         })";
@@ -261,18 +273,27 @@ public:
         QString parseError;
         const UpdateReleaseInfo newerInfo = UpdateChecker::parseLatestReleaseJson(
             releasePayload,
-            QStringLiteral("0.3.5"),
+            QStringLiteral("0.3.6"),
             &parseError);
         check(parseError.isEmpty(), "Valid GitHub release JSON returned a parse error.");
         check(newerInfo.updateAvailable, "Newer release was not detected as an available update.");
-        check(newerInfo.latestVersion == QStringLiteral("0.3.6"), "Latest version string was not normalized.");
-        check(newerInfo.installerName == QStringLiteral("peekpass-0.3.6-win64-setup.exe"),
+        check(newerInfo.latestVersion == QStringLiteral("0.3.7"), "Latest version string was not normalized.");
+        check(newerInfo.installerName == QStringLiteral("peekpass-0.3.7-win64-setup.exe"),
             "Installer asset name was not selected.");
         check(newerInfo.installerSize == 654321, "Installer asset size did not match.");
+        check(newerInfo.checksumsUrl.endsWith(QStringLiteral("/SHA256SUMS.txt")),
+            "Checksums asset URL was not extracted.");
+
+        const QByteArray sampleChecksums =
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  peekpass-0.3.7-win64-setup.exe\n"
+            "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210  peekpass-v0.3.7-win64.zip\n";
+        check(UpdateChecker::parseSha256SumForFile(sampleChecksums, QStringLiteral("peekpass-0.3.7-win64-setup.exe"))
+                == QStringLiteral("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
+            "SHA-256 checksum parser did not match the installer entry.");
 
         const UpdateReleaseInfo sameInfo = UpdateChecker::parseLatestReleaseJson(
             releasePayload,
-            QStringLiteral("0.3.6"),
+            QStringLiteral("0.3.7"),
             &parseError);
         check(!sameInfo.updateAvailable, "Current version was falsely marked as needing an update.");
 

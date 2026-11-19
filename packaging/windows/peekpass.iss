@@ -38,6 +38,9 @@ OutputBaseFilename={#OutputBase}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+#if FileExists("..\..\src\icons\peekpass.ico")
+SetupIconFile=..\..\src\icons\peekpass.ico
+#endif
 UninstallDisplayIcon={app}\peekpass.exe
 CloseApplications=yes
 RestartApplications=no
