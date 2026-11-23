@@ -3,6 +3,7 @@
 #include "AppSettings.h"
 #include "I18n.h"
 #include "UpdateChecker.h"
+#include "WinHotkey.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -20,7 +21,9 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPainterPath>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QSizePolicy>
 #include <QSlider>
@@ -84,16 +87,16 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     m_themeCombo->addItem(uiText("Light", "라이트"), "light");
     const int themeIndex = m_themeCombo->findData(AppSettings::theme());
     m_themeCombo->setCurrentIndex(themeIndex >= 0 ? themeIndex : 0);
-    m_themeCombo->setMinimumWidth(180);
-    m_themeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    m_themeCombo->setMinimumWidth(240);
+    m_themeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     m_passwordManagerCombo = new QComboBox(this);
     m_passwordManagerCombo->addItem(QStringLiteral("Bitwarden"), QStringLiteral("bitwarden"));
     m_passwordManagerCombo->addItem(QStringLiteral("Proton Pass"), QStringLiteral("protonpass"));
     const int passwordManagerIndex = m_passwordManagerCombo->findData(AppSettings::passwordManagerType());
     m_passwordManagerCombo->setCurrentIndex(passwordManagerIndex >= 0 ? passwordManagerIndex : 0);
-    m_passwordManagerCombo->setMinimumWidth(180);
-    m_passwordManagerCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    m_passwordManagerCombo->setMinimumWidth(240);
+    m_passwordManagerCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     m_hotkeyEdit = new QKeySequenceEdit(AppSettings::showHotkey(), this);
     m_hotkeyEdit->setMaximumSequenceLength(1);
@@ -163,7 +166,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
     m_fontSizeSpin = new QSpinBox(this);
     m_fontSizeSpin->setRange(9, 22);
-    m_fontSizeSpin->setSuffix(" pt");
+    m_fontSizeSpin->setSuffix(" px");
     m_fontSizeSpin->setValue(AppSettings::quickFontSize());
     configureSpinBox(m_fontSizeSpin, 96);
 
@@ -480,18 +483,29 @@ SettingsDialog::SettingsDialog(QWidget* parent)
     protonPassTab->addWidget(protonCliDocs);
     protonPassTab->addStretch(1);
 
+    auto* titleBar = new QHBoxLayout;
+    titleBar->setContentsMargins(0, 0, 0, 0);
     auto* titleLabel = new QLabel(windowTitle(), this);
     titleLabel->setObjectName("settingsDialogTitle");
     titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    auto* closeIconButton = new QPushButton(QStringLiteral("\u00D7"), this);
+    closeIconButton->setObjectName("settingsCloseIconButton");
+    closeIconButton->setCursor(Qt::PointingHandCursor);
+    closeIconButton->setToolTip(uiText("Cancel", "취소"));
+    connect(closeIconButton, &QPushButton::clicked, this, &QDialog::reject);
+    titleBar->addWidget(titleLabel);
+    titleBar->addStretch(1);
+    titleBar->addWidget(closeIconButton);
 
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(16, 14, 16, 14);
     layout->setSpacing(10);
-    layout->addWidget(titleLabel);
+    layout->addLayout(titleBar);
     layout->addWidget(tabs, 1);
     layout->addWidget(buttons);
 
     applyDialogStyle();
+    updateWindowMask();
 
     connect(m_opacitySlider, &QSlider::valueChanged, this, [this] {
         updateOpacityLabel();
@@ -612,6 +626,24 @@ void SettingsDialog::mouseReleaseEvent(QMouseEvent* event)
     QDialog::mouseReleaseEvent(event);
 }
 
+void SettingsDialog::resizeEvent(QResizeEvent* event)
+{
+    QDialog::resizeEvent(event);
+    updateWindowMask();
+}
+
+void SettingsDialog::updateWindowMask()
+{
+    if (!AppSettings::roundedCorners()) {
+        clearMask();
+        return;
+    }
+
+    QPainterPath path;
+    path.addRoundedRect(rect(), 12, 12);
+    setMask(QRegion(path.toFillPolygon().toPolygon()));
+}
+
 void SettingsDialog::chooseBwProgram()
 {
     const QString path = QFileDialog::getOpenFileName(
@@ -694,6 +726,15 @@ void SettingsDialog::saveAndAccept()
             this,
             uiText("Hotkey", "단축키"),
             uiText("Choose a quick access hotkey first.", "빠른 액세스 단축키를 먼저 선택하세요."));
+        return;
+    }
+
+    QString hotkeyError;
+    if (!WinHotkey::isSupportedHotkey(m_hotkeyEdit->keySequence(), &hotkeyError)) {
+        QMessageBox::warning(
+            this,
+            uiText("Hotkey", "단축키"),
+            hotkeyError);
         return;
     }
 
@@ -787,6 +828,20 @@ void SettingsDialog::applyDialogStyle()
                 font-size: 14px;
                 font-weight: 800;
                 padding: 1px 2px 5px 2px;
+            }
+            #settingsCloseIconButton {
+                background: transparent;
+                color: #57606a;
+                border: 0;
+                border-radius: 5px;
+                padding: 2px 8px;
+                min-height: 24px;
+                font-size: 16px;
+                font-weight: 800;
+            }
+            #settingsCloseIconButton:hover {
+                background: #eaeef2;
+                color: #111827;
             }
             #settingsNote, #settingsLink {
                 color: #57606a;
@@ -967,6 +1022,20 @@ void SettingsDialog::applyDialogStyle()
             font-size: 14px;
             font-weight: 800;
             padding: 1px 2px 5px 2px;
+        }
+        #settingsCloseIconButton {
+            background: transparent;
+            color: #9aa4b2;
+            border: 0;
+            border-radius: 5px;
+            padding: 2px 8px;
+            min-height: 24px;
+            font-size: 16px;
+            font-weight: 800;
+        }
+        #settingsCloseIconButton:hover {
+            background: #2f333a;
+            color: #ffffff;
         }
         #settingsNote, #settingsLink {
             color: #b7bdc6;
@@ -1152,17 +1221,33 @@ void SettingsDialog::updateShortcutGuide()
     if (!m_shortcutsLabel)
         return;
 
+    const QString selectedLanguage = m_languageCombo
+        ? m_languageCombo->currentData().toString().trimmed().toLower()
+        : AppSettings::language();
+    const bool previewKorean = selectedLanguage.startsWith(QStringLiteral("ko"));
+
     const QString hotkey = m_hotkeyEdit->keySequence().isEmpty()
-        ? uiText("Not set", "미지정")
+        ? (previewKorean ? QStringLiteral("미지정") : QStringLiteral("Not set"))
         : m_hotkeyEdit->keySequence().toString(QKeySequence::NativeText);
 
     const bool bitwardenStyle = m_shortcutPresetCombo
         && m_shortcutPresetCombo->currentData().toString() == QStringLiteral("bitwarden");
-    const QString guide = bitwardenStyle
-        ? uiText("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close",
-                 "단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기")
-        : uiText("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close",
-                 "단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기");
+    QString guide;
+    if (previewKorean) {
+        guide = bitwardenStyle
+            ? QStringLiteral("단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기")
+            : QStringLiteral("단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기");
+    } else if (selectedLanguage == QStringLiteral("en")) {
+        guide = bitwardenStyle
+            ? QStringLiteral("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close")
+            : QStringLiteral("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close");
+    } else {
+        guide = bitwardenStyle
+            ? uiText("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close",
+                     "단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기")
+            : uiText("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close",
+                     "단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기");
+    }
 
     m_shortcutsLabel->setText(guide.arg(hotkey));
 }

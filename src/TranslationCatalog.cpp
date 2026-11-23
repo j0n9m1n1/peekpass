@@ -16,7 +16,24 @@ namespace
     QT_TRANSLATE_NOOP("Main", "Another app, such as 1Password, may already be using this shortcut."),
     QT_TRANSLATE_NOOP("Main", "Windows startup"),
     QT_TRANSLATE_NOOP("Main", "Could not validate the startup registration. Configure startup again in Settings."),
-    QT_TRANSLATE_NOOP("Main", "peekpass is running. Press %1 to open quick access.")
+    QT_TRANSLATE_NOOP("Main", "peekpass is running.\nPress %1 to open quick access."),
+    QT_TRANSLATE_NOOP("Main", "Could not sign out of the Proton Pass session."),
+    QT_TRANSLATE_NOOP("Main", "Could not lock the Bitwarden vault.")
+};
+
+[[maybe_unused]] const char* const AppSettingsMessages[] = {
+    QT_TRANSLATE_NOOP("AppSettings", "The startup executable does not exist: %1"),
+    QT_TRANSLATE_NOOP("AppSettings", "Required runtime files are missing beside the application: %1. Use the packaged release created with windeployqt."),
+    QT_TRANSLATE_NOOP("AppSettings", "Windows denied access to the current user's startup registry key."),
+    QT_TRANSLATE_NOOP("AppSettings", "Windows returned an invalid startup registry value."),
+    QT_TRANSLATE_NOOP("AppSettings", "The Windows startup registry entry could not be updated."),
+    QT_TRANSLATE_NOOP("AppSettings", "Windows did not retain the requested startup registry entry."),
+    QT_TRANSLATE_NOOP("AppSettings", "The registered startup entry is not runnable. %1")
+};
+
+[[maybe_unused]] const char* const SingleInstanceMessages[] = {
+    QT_TRANSLATE_NOOP("SingleInstance", "Could not start the single-instance server: %1"),
+    QT_TRANSLATE_NOOP("SingleInstance", "peekpass is already running, but could not activate the existing instance: %1")
 };
 
 [[maybe_unused]] const char* const WinHotkeyMessages[] = {
@@ -207,7 +224,15 @@ namespace
     QT_TRANSLATE_NOOP("SettingsDialog", "Behavior"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Keep search"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Auto sync"),
-    QT_TRANSLATE_NOOP("SettingsDialog", "Security/startup"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "OK"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Cancel"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "General"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Quick Window"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Search and Display"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Opacity"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Corners"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Security and Startup"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Bitwarden CLI"),
     QT_TRANSLATE_NOOP("SettingsDialog", "bw.exe location"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Leave bw.exe empty to use bw.exe beside peekpass first, then bw from PATH. Session storage does not store the master password."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Bitwarden CLI download and setup:"),
@@ -304,6 +329,14 @@ namespace
     QT_TRANSLATE_NOOP("QuickWindow", "Value copied. (Clears in 30s)"),
     QT_TRANSLATE_NOOP("QuickWindow", "Username copied."),
     QT_TRANSLATE_NOOP("QuickWindow", "TOTP code copied. (Clears in 30s)"),
+    QT_TRANSLATE_NOOP("QuickWindow", "This item has no password."),
+    QT_TRANSLATE_NOOP("QuickWindow", "This item has no username."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Unsupported OTP type."),
+    QT_TRANSLATE_NOOP("QuickWindow", "Additional details"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Bitwarden Logout"),
+    QT_TRANSLATE_NOOP("QuickWindow", "Could not check Proton Pass status."),
+    QT_TRANSLATE_NOOP("ProtonPassClient", "Could not start %1."),
+    QT_TRANSLATE_NOOP("UpdateChecker", "Download redirected to an untrusted host."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Show notification after copying"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Check for updates automatically on startup"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Check for updates..."),

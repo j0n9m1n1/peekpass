@@ -98,5 +98,8 @@ private:
     QNetworkAccessManager* m_network = nullptr;
     QPointer<QNetworkReply> m_activeReply;
     QPointer<UpdateDialog> m_activeDialog;
+    QPointer<QWidget> m_activeParent;
+    QPointer<QSystemTrayIcon> m_activeTray;
+    bool m_activeInteractive = false;
     UpdateReleaseInfo m_lastAvailableInfo;
 };

@@ -264,10 +264,12 @@ QProcessEnvironment cleanLoginEnvironment()
 {
     auto environment = QProcessEnvironment::systemEnvironment();
     for (const QString& key : environment.keys()) {
-        if (key.startsWith(QStringLiteral("PROTON_PASS_"))
-            && (key.contains(QStringLiteral("PASSWORD")) || key.contains(QStringLiteral("TOTP"))
-                || key.contains(QStringLiteral("PERSONAL_ACCESS_TOKEN"))))
+        if (key.startsWith(QStringLiteral("PROTON_PASS_"), Qt::CaseInsensitive)
+            && (key.contains(QStringLiteral("PASSWORD"), Qt::CaseInsensitive)
+                || key.contains(QStringLiteral("TOTP"), Qt::CaseInsensitive)
+                || key.contains(QStringLiteral("PERSONAL_ACCESS_TOKEN"), Qt::CaseInsensitive))) {
             environment.remove(key);
+        }
     }
     environment.insert(QStringLiteral("NO_COLOR"), QStringLiteral("1"));
     return environment;
@@ -364,7 +366,8 @@ VaultItem itemFromPayload(const QJsonObject& source, const QString& fallbackShar
     const QString shareId = objectField(item, QStringLiteral("share_id")).isEmpty()
         ? fallbackShareId
         : objectField(item, QStringLiteral("share_id"));
-    result.id = ProtonPassClient::makeItemKey(shareId, objectField(item, QStringLiteral("id")));
+    const QString rawItemId = objectField(item, QStringLiteral("id"));
+    result.id = rawItemId.isEmpty() ? QString() : ProtonPassClient::makeItemKey(shareId, rawItemId);
     result.name = objectField(itemData, QStringLiteral("title"));
     result.type = itemTypeName(variant);
     result.typeCode = itemTypeCode(variant);
@@ -382,8 +385,11 @@ VaultItem itemFromPayload(const QJsonObject& source, const QString& fallbackShar
             result.username = objectField(payload, QStringLiteral("email"));
         result.password = objectField(payload, QStringLiteral("password"));
         result.totp = objectField(payload, QStringLiteral("totp_uri"));
-        for (const QJsonValue& url : payload.value(QStringLiteral("urls")).toArray())
-            result.uris.push_back(valueAsText(url));
+        for (const QJsonValue& url : payload.value(QStringLiteral("urls")).toArray()) {
+            const QString urlText = valueAsText(url);
+            if (!urlText.isEmpty())
+                result.uris.push_back(urlText);
+        }
     } else if (variant.compare(QStringLiteral("CreditCard"), Qt::CaseInsensitive) == 0) {
         result.card.cardholderName = objectField(payload, QStringLiteral("cardholder_name"));
         result.card.brand = objectField(payload, QStringLiteral("card_type"));
@@ -493,6 +499,7 @@ bool ProtonPassClient::isAvailable(QString* errorMessage) const
 
 ProtonPassClient::StatusInfo ProtonPassClient::statusInfo(QString* errorMessage)
 {
+    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
     StatusInfo info;
     const CommandResult result = run({QStringLiteral("info"), QStringLiteral("--output"), QStringLiteral("json")}, 15000);
     if (!result.ok()) {
@@ -583,6 +590,7 @@ bool ProtonPassClient::lock(QString* errorMessage)
 
 bool ProtonPassClient::logout(QString* errorMessage)
 {
+    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
     const CommandResult result = run({QStringLiteral("logout")});
     clearSession();
     if (!result.ok()) {
@@ -651,7 +659,7 @@ QVector<VaultItem> ProtonPassClient::listItems(QString* errorMessage) const
 
         for (const QJsonValue& itemValue : itemDocument.object().value(QStringLiteral("items")).toArray()) {
             VaultItem item = vaultItemFromObject(itemValue.toObject(), shareId);
-            if (!item.id.isEmpty() && !item.name.isEmpty() && item.deletedDate.isEmpty())
+            if (!item.id.isEmpty() && item.deletedDate.isEmpty())
                 items.push_back(std::move(item));
         }
     }
@@ -848,15 +856,21 @@ QString ProtonPassClient::describeCommandError(const QString& program,
     const CommandResult& result)
 {
     const QString command = program + QLatin1Char(' ') + arguments.join(QLatin1Char(' '));
-    const QString standardError = trimmedUtf8(result.standardError);
-    if (!standardError.isEmpty())
-        return standardError;
-    if (!result.errorString.isEmpty())
-        return result.errorString;
+    if (!result.started) {
+        return !result.errorString.isEmpty()
+            ? result.errorString
+            : uiText("Could not start %1.", "%1을(를) 시작하지 못했습니다.").arg(command);
+    }
     if (result.timedOut)
         return uiText("Timed out while running %1.", "%1 실행 시간이 초과되었습니다.").arg(command);
     if (result.crashed)
         return uiText("%1 crashed.", "%1 실행이 비정상 종료되었습니다.").arg(command);
+    const QString standardError = trimmedUtf8(result.standardError);
+    if (!standardError.isEmpty())
+        return standardError;
+    const QString standardOutput = trimmedUtf8(result.standardOutput);
+    if (!standardOutput.isEmpty())
+        return standardOutput;
     return uiText("%1 failed with exit code %2.", "%1 실행에 실패했습니다. 종료 코드: %2")
         .arg(command)
         .arg(result.exitCode);
@@ -875,16 +889,6 @@ ProtonPassClient::CommandResult ProtonPassClient::run(const QStringList& argumen
     process.setProcessChannelMode(QProcess::SeparateChannels);
 
     QProcessEnvironment environment = cleanLoginEnvironment();
-    const QStringList credentialVariables = {
-        QStringLiteral("PROTON_PASS_PASSWORD"),
-        QStringLiteral("PROTON_PASS_PASSWORD_FILE"),
-        QStringLiteral("PROTON_PASS_TOTP"),
-        QStringLiteral("PROTON_PASS_TOTP_FILE"),
-        QStringLiteral("PROTON_PASS_EXTRA_PASSWORD"),
-        QStringLiteral("PROTON_PASS_EXTRA_PASSWORD_FILE")
-    };
-    for (const QString& key : credentialVariables)
-        environment.remove(key);
     for (const QString& key : extraEnvironment.keys())
         environment.insert(key, extraEnvironment.value(key));
     environment.insert(QStringLiteral("NO_COLOR"), QStringLiteral("1"));
@@ -895,6 +899,10 @@ ProtonPassClient::CommandResult ProtonPassClient::run(const QStringList& argumen
     result.started = process.waitForStarted(3000);
     if (!result.started) {
         result.errorString = process.errorString();
+        if (process.state() != QProcess::NotRunning) {
+            process.kill();
+            process.waitForFinished(1000);
+        }
         return result;
     }
 

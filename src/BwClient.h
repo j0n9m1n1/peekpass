@@ -34,8 +34,8 @@ public:
     static void clearStoredSessionData();
 
     bool isAvailable(QString* errorMessage = nullptr) const;
-    StatusInfo statusInfo(QString* errorMessage = nullptr) const;
-    VaultStatus status(QString* errorMessage = nullptr) const;
+    StatusInfo statusInfo(QString* errorMessage = nullptr);
+    VaultStatus status(QString* errorMessage = nullptr);
     bool configureServer(const QString& serverUrl, QString* errorMessage = nullptr);
     bool loginWithCredentials(const QString& serverUrl,
         const QString& email,

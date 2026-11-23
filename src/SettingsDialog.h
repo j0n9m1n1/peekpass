@@ -12,6 +12,7 @@ class QKeySequenceEdit;
 class QLineEdit;
 class QMouseEvent;
 class QPushButton;
+class QResizeEvent;
 class QSlider;
 class QSpinBox;
 
@@ -27,8 +28,10 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
+    void updateWindowMask();
     void chooseBwProgram();
     void chooseProtonPassProgram();
     void requestLogout();

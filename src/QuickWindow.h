@@ -45,6 +45,7 @@ public:
     bool logoutVault(QString* errorMessage = nullptr);
     void applySettings();
     void setSettingsChangedCallback(std::function<void()> callback);
+    void setSettingsDialogStateCallback(std::function<void(bool)> callback);
     void setNotificationCallback(std::function<void(const QString&)> callback);
 
 private:
@@ -105,6 +106,7 @@ private:
     void handleItemsFinished();
     QVector<VaultItem> filterCachedItems(const QString& keyword) const;
     void restorePreservedSearch();
+    void clearPreservedSearchState();
     bool shouldRestorePreservedSearch() const;
     void preserveSearchState();
     void recordRecentItem(const QString& itemId);
@@ -117,6 +119,7 @@ private:
     void handlePrepareFinished();
     void showStartupAuthPanel(AuthMode mode);
     void showAuthPanel(AuthMode mode);
+    void focusAuthPrimaryInput();
     void hideAuthPanel();
     void submitAuth();
     void handleAuthFinished();
@@ -200,12 +203,14 @@ private:
     bool m_quietItemLoad = false;
     bool m_syncing = false;
     bool m_preloadPending = false;
+    bool m_retryInteractivePrepare = false;
+    bool m_settingsOpen = false;
     bool m_silentPreloadRetry = false;
     bool m_intentionallyLocked = false;
     bool m_resetting = false;
     bool m_backgroundSessionCheck = false;
     bool m_executingVerifiedAction = false;
-    std::function<void()> m_pendingVaultAction;
+    QVector<std::function<void()>> m_pendingVaultActions;
     quint64 m_vaultGeneration = 0;
     quint64 m_clipboardGeneration = 0;
     QElapsedTimer m_preservedSearchTimer;
@@ -218,5 +223,6 @@ private:
     QPoint m_dragOffset;
     QPoint m_dragStartPosition;
     std::function<void()> m_settingsChanged;
+    std::function<void(bool)> m_settingsDialogStateCallback;
     std::function<void(const QString&)> m_notificationCallback;
 };

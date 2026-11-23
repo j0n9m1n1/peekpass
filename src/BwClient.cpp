@@ -375,7 +375,6 @@ QString BwClient::program() const
 
 void BwClient::reloadSettings()
 {
-    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
     QMutexLocker<QMutex> stateLocker(&m_stateMutex);
     m_program = findBwProgram();
 
@@ -391,7 +390,6 @@ void BwClient::reloadSettings()
 
 void BwClient::clearSession()
 {
-    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
     QMutexLocker<QMutex> stateLocker(&m_stateMutex);
     m_session.fill(QChar('\0'));
     m_session.clear();
@@ -421,8 +419,9 @@ bool BwClient::isAvailable(QString* errorMessage) const
     return false;
 }
 
-BwClient::StatusInfo BwClient::statusInfo(QString* errorMessage) const
+BwClient::StatusInfo BwClient::statusInfo(QString* errorMessage)
 {
+    QMutexLocker<QRecursiveMutex> commandLocker(&m_commandMutex);
     StatusInfo info;
     const QStringList arguments = {"status"};
     const CommandResult result = run(arguments, {}, 5000);
@@ -448,21 +447,24 @@ BwClient::StatusInfo BwClient::statusInfo(QString* errorMessage) const
     info.serverUrl = object.value("serverUrl").toString();
     setError(errorMessage, {});
 
-    if (value == "unauthenticated")
+    if (value == "unauthenticated") {
         info.status = VaultStatus::Unauthenticated;
-    else if (value == "locked")
+        clearSession();
+    } else if (value == "locked") {
         info.status = VaultStatus::Locked;
-    else if (value == "unlocked")
+        clearSession();
+    } else if (value == "unlocked") {
         info.status = VaultStatus::Unlocked;
-    else
+    } else {
         setError(errorMessage, uiText("알 수 없는 Bitwarden 상태입니다: %1",
                                       "Unknown Bitwarden status: %1")
                 .arg(value));
+    }
 
     return info;
 }
 
-BwClient::VaultStatus BwClient::status(QString* errorMessage) const
+BwClient::VaultStatus BwClient::status(QString* errorMessage)
 {
     return statusInfo(errorMessage).status;
 }
@@ -719,7 +721,10 @@ QString BwClient::getPassword(const QString& itemId, QString* errorMessage) cons
     }
 
     setError(errorMessage, {});
-    return trimmedUtf8(result.standardOutput);
+    QString password = QString::fromUtf8(result.standardOutput);
+    while (password.endsWith(QLatin1Char('\n')) || password.endsWith(QLatin1Char('\r')))
+        password.chop(1);
+    return password;
 }
 
 QString BwClient::getUsername(const QString& itemId, QString* errorMessage) const
@@ -908,6 +913,10 @@ BwClient::CommandResult BwClient::run(const QStringList& arguments,
 
     if (!process.waitForStarted(3000)) {
         result.errorString = process.errorString();
+        if (process.state() != QProcess::NotRunning) {
+            process.kill();
+            process.waitForFinished(1000);
+        }
         return result;
     }
 

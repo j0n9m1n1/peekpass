@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractNativeEventFilter>
+#include <QKeySequence>
 #include <QString>
 
 class QuickWindow;
@@ -10,6 +11,8 @@ class WinHotkey : public QAbstractNativeEventFilter
 public:
     explicit WinHotkey(QuickWindow* window);
     ~WinHotkey() override;
+
+    static bool isSupportedHotkey(const QKeySequence& sequence, QString* errorMessage = nullptr);
 
     bool registerHotkey();
     void unregisterHotkey();

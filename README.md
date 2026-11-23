@@ -217,7 +217,7 @@ To package a local Release build with its Qt runtime and translations, run:
 .\packaging\windows\package.ps1 -QtDir C:\Qt\6.12.0\mingw_64
 ```
 
-This creates `dist/peekpass-0.3.7-win64-setup.exe`, the portable ZIP, and
+This creates `dist/peekpass-0.3.8-win64-setup.exe`, the portable ZIP, and
 `dist/SHA256SUMS.txt`. The script discovers Inno Setup 6 or 7 in system and
 per-user installation directories; `-IsccPath` overrides it.
 
@@ -228,8 +228,8 @@ output directories (adjust the version to match `CMakeLists.txt`):
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-  "/DAppVersion=0.3.7" `
-  "/DStageDir=$PWD\dist\peekpass-v0.3.7-win64" `
+  "/DAppVersion=0.3.8" `
+  "/DStageDir=$PWD\dist\peekpass-v0.3.8-win64" `
   "/DInstallerOutputDir=$PWD\dist" `
   ".\packaging\windows\peekpass.iss"
 ```

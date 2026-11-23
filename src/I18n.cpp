@@ -17,8 +17,32 @@ constexpr const char* TranslationPrefix = "peekpass_";
 
 QString normalizedLanguageCode(const QString& languageCode)
 {
-    const QString normalized = languageCode.trimmed().toLower().replace('-', '_');
-    return normalized.isEmpty() ? QStringLiteral("en") : normalized;
+    QString normalized = languageCode.trimmed().replace('-', '_');
+    if (normalized.isEmpty())
+        return QStringLiteral("en");
+
+    const QStringList parts = normalized.split('_', Qt::SkipEmptyParts);
+    if (parts.isEmpty())
+        return QStringLiteral("en");
+    if (parts.size() == 1)
+        return parts.at(0).toLower();
+
+    return parts.at(0).toLower() + QLatin1Char('_') + parts.at(1).toUpper();
+}
+
+QStringList languageFileVariants(const QString& code)
+{
+    QStringList variants { code };
+    const QString lower = code.toLower();
+    if (lower != code)
+        variants.push_back(lower);
+    const int underscore = code.indexOf(QLatin1Char('_'));
+    if (underscore > 0) {
+        const QString base = code.left(underscore).toLower();
+        if (!variants.contains(base))
+            variants.push_back(base);
+    }
+    return variants;
 }
 
 QStringList translationDirectories()
@@ -95,11 +119,13 @@ bool installTranslator(QCoreApplication& app, QTranslator& translator, const QSt
     if (code == QStringLiteral("en"))
         return true;
 
-    const QString fileBaseName = QStringLiteral("%1%2").arg(QString::fromLatin1(TranslationPrefix), code);
-    for (const QString& directoryPath : translationDirectories()) {
-        if (translator.load(fileBaseName, directoryPath)) {
-            app.installTranslator(&translator);
-            return true;
+    for (const QString& variant : languageFileVariants(code)) {
+        const QString fileBaseName = QStringLiteral("%1%2").arg(QString::fromLatin1(TranslationPrefix), variant);
+        for (const QString& directoryPath : translationDirectories()) {
+            if (translator.load(fileBaseName, directoryPath)) {
+                app.installTranslator(&translator);
+                return true;
+            }
         }
     }
 
@@ -114,15 +140,23 @@ bool installQtTranslator(QCoreApplication& app, QTranslator& translator, const Q
     if (code == QStringLiteral("en"))
         return true;
 
-    const QStringList candidates = {
-        QStringLiteral("qtbase_%1").arg(code),
-        QStringLiteral("qt_%1").arg(code)
-    };
-    const QString translationsPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
-    for (const QString& candidate : candidates) {
-        if (translator.load(candidate, translationsPath)) {
-            app.installTranslator(&translator);
-            return true;
+    QStringList directories = translationDirectories();
+    const QString libraryTranslationsPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
+    if (!libraryTranslationsPath.isEmpty() && !directories.contains(libraryTranslationsPath))
+        directories.push_back(libraryTranslationsPath);
+
+    for (const QString& variant : languageFileVariants(code)) {
+        const QStringList candidates = {
+            QStringLiteral("qtbase_%1").arg(variant),
+            QStringLiteral("qt_%1").arg(variant)
+        };
+        for (const QString& directoryPath : directories) {
+            for (const QString& candidate : candidates) {
+                if (translator.load(candidate, directoryPath)) {
+                    app.installTranslator(&translator);
+                    return true;
+                }
+            }
         }
     }
 

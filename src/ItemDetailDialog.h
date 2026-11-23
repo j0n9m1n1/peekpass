@@ -67,6 +67,9 @@ private:
     QString m_errorMessage;
 
     QVBoxLayout* m_contentLayout = nullptr;
+    QLabel* m_windowTitleLabel = nullptr;
+    QPushButton* m_closeIconButton = nullptr;
+    QPushButton* m_closeButton = nullptr;
     QLabel* m_loadingLabel = nullptr;
     QProgressBar* m_loadingBar = nullptr;
     QVector<LiveTotpBinding> m_liveTotpBindings;

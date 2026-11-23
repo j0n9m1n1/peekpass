@@ -4,6 +4,7 @@
 #include "I18n.h"
 #include "QuickWindow.h"
 
+#include <QApplication>
 #include <QKeyCombination>
 #include <QKeySequence>
 
@@ -58,6 +59,7 @@ UINT toVirtualKey(Qt::Key key)
     case Qt::Key_Space:
         return VK_SPACE;
     case Qt::Key_Tab:
+    case Qt::Key_Backtab:
         return VK_TAB;
     case Qt::Key_Return:
     case Qt::Key_Enter:
@@ -86,27 +88,58 @@ UINT toVirtualKey(Qt::Key key)
         return VK_UP;
     case Qt::Key_Down:
         return VK_DOWN;
+    case Qt::Key_Exclam:
+        return static_cast<UINT>('1');
+    case Qt::Key_At:
+        return static_cast<UINT>('2');
+    case Qt::Key_NumberSign:
+        return static_cast<UINT>('3');
+    case Qt::Key_Dollar:
+        return static_cast<UINT>('4');
+    case Qt::Key_Percent:
+        return static_cast<UINT>('5');
+    case Qt::Key_AsciiCircum:
+        return static_cast<UINT>('6');
+    case Qt::Key_Ampersand:
+        return static_cast<UINT>('7');
+    case Qt::Key_Asterisk:
+        return static_cast<UINT>('8');
+    case Qt::Key_ParenLeft:
+        return static_cast<UINT>('9');
+    case Qt::Key_ParenRight:
+        return static_cast<UINT>('0');
     case Qt::Key_Period:
+    case Qt::Key_Greater:
         return VK_OEM_PERIOD;
     case Qt::Key_Comma:
+    case Qt::Key_Less:
         return VK_OEM_COMMA;
     case Qt::Key_Minus:
+    case Qt::Key_Underscore:
         return VK_OEM_MINUS;
     case Qt::Key_Equal:
+    case Qt::Key_Plus:
         return VK_OEM_PLUS;
     case Qt::Key_Slash:
+    case Qt::Key_Question:
         return VK_OEM_2;
     case Qt::Key_Backslash:
+    case Qt::Key_Bar:
         return VK_OEM_5;
     case Qt::Key_Semicolon:
+    case Qt::Key_Colon:
         return VK_OEM_1;
     case Qt::Key_Apostrophe:
+    case Qt::Key_QuoteDbl:
         return VK_OEM_7;
     case Qt::Key_BracketLeft:
+    case Qt::Key_BraceLeft:
         return VK_OEM_4;
     case Qt::Key_BracketRight:
+    case Qt::Key_BraceRight:
         return VK_OEM_6;
     case Qt::Key_QuoteLeft:
+    case Qt::Key_AsciiTilde:
         return VK_OEM_3;
     default:
         return 0;
@@ -151,7 +184,45 @@ WinHotkey::WinHotkey(QuickWindow* window)
 
 WinHotkey::~WinHotkey()
 {
+    if (QCoreApplication* app = QCoreApplication::instance())
+        app->removeNativeEventFilter(this);
     unregisterHotkey();
+}
+
+bool WinHotkey::isSupportedHotkey(const QKeySequence& sequence, QString* errorMessage)
+{
+    if (sequence.isEmpty()) {
+        if (errorMessage)
+            *errorMessage = uiText("No quick access hotkey is configured.", "빠른 액세스 단축키가 설정되어 있지 않습니다.");
+        return false;
+    }
+
+#ifdef Q_OS_WIN
+    const QKeyCombination combination = sequence[0];
+    const Qt::KeyboardModifiers keyboardModifiers = combination.keyboardModifiers();
+    const UINT virtualKey = toVirtualKey(combination.key());
+    const bool hasModifier = keyboardModifiers.testFlag(Qt::ControlModifier)
+        || keyboardModifiers.testFlag(Qt::ShiftModifier)
+        || keyboardModifiers.testFlag(Qt::AltModifier)
+        || keyboardModifiers.testFlag(Qt::MetaModifier);
+
+    if (!hasModifier || virtualKey == 0) {
+        if (errorMessage) {
+            *errorMessage = uiText("%1 is not supported as a global hotkey yet.",
+                                   "%1은 아직 전역 단축키로 지원되지 않습니다.")
+                .arg(sequence.toString(QKeySequence::NativeText));
+        }
+        return false;
+    }
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
+#else
+    Q_UNUSED(sequence)
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
+#endif
 }
 
 bool WinHotkey::registerHotkey()
@@ -161,25 +232,12 @@ bool WinHotkey::registerHotkey()
         return true;
 
     const QKeySequence sequence = AppSettings::showHotkey();
-    if (sequence.isEmpty()) {
-        m_lastError = uiText("No quick access hotkey is configured.", "빠른 액세스 단축키가 설정되어 있지 않습니다.");
+    if (!isSupportedHotkey(sequence, &m_lastError))
         return false;
-    }
 
     const QKeyCombination combination = sequence[0];
-    const Qt::KeyboardModifiers keyboardModifiers = combination.keyboardModifiers();
-    const UINT modifiers = toWindowsModifiers(keyboardModifiers);
+    const UINT modifiers = toWindowsModifiers(combination.keyboardModifiers());
     const UINT virtualKey = toVirtualKey(combination.key());
-    const bool hasModifier = keyboardModifiers.testFlag(Qt::ControlModifier)
-        || keyboardModifiers.testFlag(Qt::ShiftModifier)
-        || keyboardModifiers.testFlag(Qt::AltModifier)
-        || keyboardModifiers.testFlag(Qt::MetaModifier);
-
-    if (!hasModifier || virtualKey == 0) {
-        m_lastError = uiText("%1 is not supported as a global hotkey yet.", "%1은 아직 전역 단축키로 지원되지 않습니다.")
-            .arg(sequence.toString(QKeySequence::NativeText));
-        return false;
-    }
 
     if (RegisterHotKey(nullptr, HotkeyId, modifiers, virtualKey)) {
         m_registered = true;
@@ -221,6 +279,8 @@ bool WinHotkey::nativeEventFilter(const QByteArray& eventType, void* message, qi
     MSG* msg = static_cast<MSG*>(message);
 
     if (msg && msg->message == WM_HOTKEY && static_cast<int>(msg->wParam) == HotkeyId) {
+        if (QApplication::activeModalWidget())
+            return true;
         if (m_window)
             m_window->showQuick();
 

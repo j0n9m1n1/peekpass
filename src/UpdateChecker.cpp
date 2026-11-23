@@ -85,6 +85,19 @@ bool isTrustedDownloadUrl(const QUrl& url)
     return false;
 }
 
+bool isTrustedReleasePageUrl(const QUrl& url)
+{
+    if (!url.isValid())
+        return false;
+
+    if (url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) != 0)
+        return false;
+
+    const QString host = url.host().toLower();
+    return host == QStringLiteral("github.com")
+        && url.path().startsWith(QStringLiteral("/j0n9m1n1/peekpass"), Qt::CaseInsensitive);
+}
+
 QString formatMegabytes(qint64 bytes)
 {
     const double mb = static_cast<double>(qMax<qint64>(0, bytes)) / (1024.0 * 1024.0);
@@ -449,9 +462,10 @@ UpdateDialog::UpdateDialog(const UpdateReleaseInfo& info, QWidget* parent)
     m_releasePageButton = new QPushButton(uiText("Release page", "릴리스 페이지"), this);
     m_releasePageButton->setCursor(Qt::PointingHandCursor);
     connect(m_releasePageButton, &QPushButton::clicked, this, [this] {
-        const QUrl url(m_info.releaseUrl.isEmpty()
-                           ? QString::fromLatin1(DefaultReleasesPageUrl)
-                           : m_info.releaseUrl);
+        const QUrl candidate(m_info.releaseUrl);
+        const QUrl url = isTrustedReleasePageUrl(candidate)
+            ? candidate
+            : QUrl(QString::fromLatin1(DefaultReleasesPageUrl));
         if (url.isValid())
             QDesktopServices::openUrl(url);
     });
@@ -553,14 +567,25 @@ void UpdateDialog::startInstallerDownload()
     if (m_downloadReply || m_checksumReply)
         return;
 
-    const QUrl installerUrl(m_info.installerUrl);
-    if (!isTrustedDownloadUrl(installerUrl)) {
-        const QUrl fallbackUrl(m_info.releaseUrl.isEmpty()
-                                   ? QString::fromLatin1(DefaultReleasesPageUrl)
-                                   : m_info.releaseUrl);
+    const auto openFallbackReleasePage = [this] {
+        const QUrl candidate(m_info.releaseUrl);
+        const QUrl fallbackUrl = isTrustedReleasePageUrl(candidate)
+            ? candidate
+            : QUrl(QString::fromLatin1(DefaultReleasesPageUrl));
         if (fallbackUrl.isValid())
             QDesktopServices::openUrl(fallbackUrl);
         accept();
+    };
+
+#ifndef Q_OS_WIN
+    openFallbackReleasePage();
+    return;
+#endif
+
+    const QUrl installerUrl(m_info.installerUrl);
+    const QUrl checksumUrl(m_info.checksumsUrl);
+    if (!isTrustedDownloadUrl(installerUrl) || !isTrustedDownloadUrl(checksumUrl)) {
+        openFallbackReleasePage();
         return;
     }
 
@@ -601,6 +626,7 @@ void UpdateDialog::startInstallerDownload()
         QNetworkRequest::UserAgentHeader,
         QStringLiteral("peekpass/%1").arg(QCoreApplication::applicationVersion()));
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(60000);
 
     m_downloadReply = m_network->get(request);
     QNetworkReply* reply = m_downloadReply.data();
@@ -630,7 +656,7 @@ void UpdateDialog::startInstallerDownload()
         }
     });
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, checksumUrl] {
         if (m_partFile && m_partFile->isOpen()) {
             m_partFile->write(reply->readAll());
             m_partFile->flush();
@@ -640,6 +666,7 @@ void UpdateDialog::startInstallerDownload()
         const QNetworkReply::NetworkError netError = reply->error();
         const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QString errorText = reply->errorString();
+        const QUrl finalUrl = reply->url();
         reply->deleteLater();
         m_downloadReply.clear();
 
@@ -648,7 +675,8 @@ void UpdateDialog::startInstallerDownload()
             return;
         }
 
-        if (netError != QNetworkReply::NoError || (httpStatus != 200 && httpStatus != 0)) {
+        if (netError != QNetworkReply::NoError || (httpStatus != 200 && httpStatus != 0)
+            || !isTrustedDownloadUrl(finalUrl)) {
             cancelDownload();
             m_updateButton->setEnabled(true);
             m_skipButton->setEnabled(true);
@@ -656,72 +684,72 @@ void UpdateDialog::startInstallerDownload()
             m_progressBar->setVisible(false);
             m_statusLabel->setVisible(true);
             m_statusLabel->setText(
-                uiText("Download failed: %1", "다운로드에 실패했습니다: %1").arg(errorText));
+                !isTrustedDownloadUrl(finalUrl)
+                    ? uiText("Download redirected to an untrusted host.",
+                             "다운로드가 신뢰할 수 없는 호스트로 리디렉션되었습니다.")
+                    : uiText("Download failed: %1", "다운로드에 실패했습니다: %1").arg(errorText));
             return;
         }
 
-        const QUrl checksumUrl(m_info.checksumsUrl);
-        if (isTrustedDownloadUrl(checksumUrl)) {
-            m_statusLabel->setText(
-                uiText("Verifying installer checksum (SHA-256)...",
-                       "설치 파일 무결성(SHA-256)을 검증하는 중입니다..."));
-            QNetworkRequest checksumRequest(checksumUrl);
-            checksumRequest.setHeader(
-                QNetworkRequest::UserAgentHeader,
-                QStringLiteral("peekpass/%1").arg(QCoreApplication::applicationVersion()));
-            checksumRequest.setAttribute(
-                QNetworkRequest::RedirectPolicyAttribute,
-                QNetworkRequest::NoLessSafeRedirectPolicy);
+        m_statusLabel->setText(
+            uiText("Verifying installer checksum (SHA-256)...",
+                   "설치 파일 무결성(SHA-256)을 검증하는 중입니다..."));
+        QNetworkRequest checksumRequest(checksumUrl);
+        checksumRequest.setHeader(
+            QNetworkRequest::UserAgentHeader,
+            QStringLiteral("peekpass/%1").arg(QCoreApplication::applicationVersion()));
+        checksumRequest.setAttribute(
+            QNetworkRequest::RedirectPolicyAttribute,
+            QNetworkRequest::NoLessSafeRedirectPolicy);
+        checksumRequest.setTransferTimeout(15000);
 
-            m_checksumReply = m_network->get(checksumRequest);
-            QNetworkReply* hashReply = m_checksumReply.data();
-            connect(hashReply, &QNetworkReply::finished, this, [this, hashReply] {
-                const QByteArray payload = hashReply->readAll();
-                const QNetworkReply::NetworkError hashError = hashReply->error();
-                const int hashHttpStatus = hashReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-                hashReply->deleteLater();
-                m_checksumReply.clear();
+        m_checksumReply = m_network->get(checksumRequest);
+        QNetworkReply* hashReply = m_checksumReply.data();
+        connect(hashReply, &QNetworkReply::finished, this, [this, hashReply] {
+            const QByteArray payload = hashReply->readAll();
+            const QNetworkReply::NetworkError hashError = hashReply->error();
+            const int hashHttpStatus = hashReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            const QUrl hashFinalUrl = hashReply->url();
+            hashReply->deleteLater();
+            m_checksumReply.clear();
 
-                if (hashError == QNetworkReply::OperationCanceledError) {
-                    cancelDownload();
-                    return;
-                }
+            if (hashError == QNetworkReply::OperationCanceledError) {
+                cancelDownload();
+                return;
+            }
 
-                if (hashError != QNetworkReply::NoError || (hashHttpStatus != 200 && hashHttpStatus != 0)) {
-                    cancelDownload();
-                    m_updateButton->setEnabled(true);
-                    m_skipButton->setEnabled(true);
-                    m_laterButton->setText(uiText("Later", "나중에"));
-                    m_progressBar->setVisible(false);
-                    m_statusLabel->setVisible(true);
-                    m_statusLabel->setText(
-                        uiText("Could not download release checksums for verification.",
-                               "무결성 검증용 체크섬 파일을 다운로드하지 못했습니다."));
-                    return;
-                }
+            if (hashError != QNetworkReply::NoError || (hashHttpStatus != 200 && hashHttpStatus != 0)
+                || !isTrustedDownloadUrl(hashFinalUrl)) {
+                cancelDownload();
+                m_updateButton->setEnabled(true);
+                m_skipButton->setEnabled(true);
+                m_laterButton->setText(uiText("Later", "나중에"));
+                m_progressBar->setVisible(false);
+                m_statusLabel->setVisible(true);
+                m_statusLabel->setText(
+                    uiText("Could not download release checksums for verification.",
+                           "무결성 검증용 체크섬 파일을 다운로드하지 못했습니다."));
+                return;
+            }
 
-                const QString expectedHash = UpdateChecker::parseSha256SumForFile(
-                    payload,
-                    QFileInfo(m_finalInstallerPath).fileName());
-                if (expectedHash.isEmpty()) {
-                    cancelDownload();
-                    m_updateButton->setEnabled(true);
-                    m_skipButton->setEnabled(true);
-                    m_laterButton->setText(uiText("Later", "나중에"));
-                    m_progressBar->setVisible(false);
-                    m_statusLabel->setVisible(true);
-                    m_statusLabel->setText(
-                        uiText("Installer entry was not found in SHA256SUMS.txt.",
-                               "SHA256SUMS.txt에서 설치 파일 해시를 찾지 못했습니다."));
-                    return;
-                }
+            const QString expectedHash = UpdateChecker::parseSha256SumForFile(
+                payload,
+                QFileInfo(m_finalInstallerPath).fileName());
+            if (expectedHash.isEmpty()) {
+                cancelDownload();
+                m_updateButton->setEnabled(true);
+                m_skipButton->setEnabled(true);
+                m_laterButton->setText(uiText("Later", "나중에"));
+                m_progressBar->setVisible(false);
+                m_statusLabel->setVisible(true);
+                m_statusLabel->setText(
+                    uiText("Installer entry was not found in SHA256SUMS.txt.",
+                           "SHA256SUMS.txt에서 설치 파일 해시를 찾지 못했습니다."));
+                return;
+            }
 
-                verifyAndLaunchInstaller(expectedHash);
-            });
-            return;
-        }
-
-        verifyAndLaunchInstaller({});
+            verifyAndLaunchInstaller(expectedHash);
+        });
     });
 }
 
@@ -750,20 +778,31 @@ void UpdateDialog::verifyAndLaunchInstaller(const QString& expectedSha256)
         return;
     }
 
-    if (!expectedSha256.isEmpty()) {
-        const QString actualSha256 = computeFileSha256Hex(m_partFilePath);
-        if (actualSha256.isEmpty() || actualSha256.compare(expectedSha256, Qt::CaseInsensitive) != 0) {
-            cancelDownload();
-            m_updateButton->setEnabled(true);
-            m_skipButton->setEnabled(true);
-            m_laterButton->setText(uiText("Later", "나중에"));
-            m_progressBar->setVisible(false);
-            m_statusLabel->setVisible(true);
-            m_statusLabel->setText(
-                uiText("SHA-256 verification failed. The downloaded file may be corrupted.",
-                       "SHA-256 무결성 검증에 실패했습니다. 다운로드된 파일이 손상되었을 수 있습니다."));
-            return;
-        }
+    if (expectedSha256.isEmpty()) {
+        cancelDownload();
+        m_updateButton->setEnabled(true);
+        m_skipButton->setEnabled(true);
+        m_laterButton->setText(uiText("Later", "나중에"));
+        m_progressBar->setVisible(false);
+        m_statusLabel->setVisible(true);
+        m_statusLabel->setText(
+            uiText("SHA-256 verification failed. The downloaded file may be corrupted.",
+                   "SHA-256 무결성 검증에 실패했습니다. 다운로드된 파일이 손상되었을 수 있습니다."));
+        return;
+    }
+
+    const QString actualSha256 = computeFileSha256Hex(m_partFilePath);
+    if (actualSha256.isEmpty() || actualSha256.compare(expectedSha256, Qt::CaseInsensitive) != 0) {
+        cancelDownload();
+        m_updateButton->setEnabled(true);
+        m_skipButton->setEnabled(true);
+        m_laterButton->setText(uiText("Later", "나중에"));
+        m_progressBar->setVisible(false);
+        m_statusLabel->setVisible(true);
+        m_statusLabel->setText(
+            uiText("SHA-256 verification failed. The downloaded file may be corrupted.",
+                   "SHA-256 무결성 검증에 실패했습니다. 다운로드된 파일이 손상되었을 수 있습니다."));
+        return;
     }
 
     if (m_partFile) {
@@ -844,8 +883,10 @@ void UpdateDialog::cancelDownload()
 
 UpdateChecker& UpdateChecker::instance()
 {
-    static UpdateChecker checker(qApp);
-    return checker;
+    static QPointer<UpdateChecker> s_instance;
+    if (!s_instance)
+        s_instance = new UpdateChecker(qApp);
+    return *s_instance;
 }
 
 UpdateChecker::UpdateChecker(QObject* parent)
@@ -929,11 +970,12 @@ UpdateReleaseInfo UpdateChecker::parseLatestReleaseJson(
     info.latestVersion = normalizeVersionString(info.tagName);
 
     const QString htmlUrl = root.value(QStringLiteral("html_url")).toString().trimmed();
-    if (!htmlUrl.isEmpty())
+    if (!htmlUrl.isEmpty() && isTrustedReleasePageUrl(QUrl(htmlUrl)))
         info.releaseUrl = htmlUrl;
 
     info.releaseNotes = root.value(QStringLiteral("body")).toString().trimmed();
 
+    bool foundCanonicalChecksums = false;
     const QJsonArray assets = root.value(QStringLiteral("assets")).toArray();
     for (const QJsonValue& assetVal : assets) {
         const QJsonObject asset = assetVal.toObject();
@@ -951,10 +993,15 @@ UpdateReleaseInfo UpdateChecker::parseLatestReleaseJson(
                 info.installerUrl = downloadUrl;
                 info.installerSize = size;
             }
-        } else if ((name.compare(QStringLiteral("SHA256SUMS.txt"), Qt::CaseInsensitive) == 0
-                    || name.endsWith(QStringLiteral(".sha256"), Qt::CaseInsensitive))
+        } else if (name.compare(QStringLiteral("SHA256SUMS.txt"), Qt::CaseInsensitive) == 0
                    && isTrustedDownloadUrl(QUrl(downloadUrl))) {
             info.checksumsUrl = downloadUrl;
+            foundCanonicalChecksums = true;
+        } else if (!foundCanonicalChecksums
+                   && name.endsWith(QStringLiteral(".sha256"), Qt::CaseInsensitive)
+                   && isTrustedDownloadUrl(QUrl(downloadUrl))) {
+            if (info.checksumsUrl.isEmpty() || name.contains(QStringLiteral("setup"), Qt::CaseInsensitive))
+                info.checksumsUrl = downloadUrl;
         } else if (name.endsWith(QStringLiteral(".zip"), Qt::CaseInsensitive)
                    && isTrustedDownloadUrl(QUrl(downloadUrl))) {
             info.portableZipUrl = downloadUrl;
@@ -979,10 +1026,17 @@ UpdateReleaseInfo UpdateChecker::parseLatestReleaseJson(
 void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSystemTrayIcon* trayIcon)
 {
     if (m_activeReply) {
-        if (interactive && m_activeDialog) {
-            m_activeDialog->show();
-            m_activeDialog->raise();
-            m_activeDialog->activateWindow();
+        if (interactive) {
+            m_activeInteractive = true;
+            if (parentWidget)
+                m_activeParent = parentWidget;
+            if (trayIcon)
+                m_activeTray = trayIcon;
+            if (m_activeDialog) {
+                m_activeDialog->show();
+                m_activeDialog->raise();
+                m_activeDialog->activateWindow();
+            }
         }
         return;
     }
@@ -996,14 +1050,16 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
         QStringLiteral("peekpass/%1").arg(QCoreApplication::applicationVersion()));
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setTransferTimeout(15000);
 
-    QPointer<QWidget> safeParent(parentWidget);
-    QPointer<QSystemTrayIcon> safeTray(trayIcon);
+    m_activeInteractive = interactive;
+    m_activeParent = parentWidget;
+    m_activeTray = trayIcon;
 
     m_activeReply = m_network->get(request);
     QNetworkReply* reply = m_activeReply.data();
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply, interactive, safeParent, safeTray] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply] {
         const QByteArray payload = reply->readAll();
         const QNetworkReply::NetworkError netError = reply->error();
         const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
@@ -1011,10 +1067,17 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
         reply->deleteLater();
         m_activeReply.clear();
 
+        const bool interactiveCheck = m_activeInteractive;
+        const QPointer<QWidget> safeParent = m_activeParent;
+        const QPointer<QSystemTrayIcon> safeTray = m_activeTray;
+        m_activeInteractive = false;
+        m_activeParent.clear();
+        m_activeTray.clear();
+
         QWidget* dialogParent = (safeParent && safeParent->isVisible()) ? safeParent.data() : nullptr;
 
         if (netError != QNetworkReply::NoError || (httpStatus != 200 && httpStatus != 0)) {
-            if (interactive) {
+            if (interactiveCheck) {
                 QMessageBox::warning(
                     dialogParent,
                     uiText("Check for updates", "업데이트 확인"),
@@ -1032,7 +1095,7 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
             &parseError);
 
         if (!parseError.isEmpty()) {
-            if (interactive) {
+            if (interactiveCheck) {
                 QMessageBox::warning(
                     dialogParent,
                     uiText("Check for updates", "업데이트 확인"),
@@ -1044,7 +1107,7 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
         AppSettings::setLastUpdateCheckEpochSeconds(QDateTime::currentSecsSinceEpoch());
 
         if (!info.updateAvailable) {
-            if (interactive) {
+            if (interactiveCheck) {
                 QMessageBox::information(
                     dialogParent,
                     uiText("Check for updates", "업데이트 확인"),
@@ -1055,11 +1118,11 @@ void UpdateChecker::checkForUpdates(bool interactive, QWidget* parentWidget, QSy
             return;
         }
 
-        if (!interactive && info.latestVersion == AppSettings::skippedUpdateVersion())
+        if (!interactiveCheck && info.latestVersion == AppSettings::skippedUpdateVersion())
             return;
 
         m_lastAvailableInfo = info;
-        if (!interactive && safeTray && safeTray->isVisible()) {
+        if (!interactiveCheck && safeTray && safeTray->isVisible()) {
             safeTray->showMessage(
                 QStringLiteral("peekpass"),
                 uiText("A new update (v%1) is available.",

@@ -3,7 +3,9 @@
 #include "QuickWindow.h"
 #include "SettingsDialog.h"
 #include "SingleInstance.h"
+#include "TotpGenerator.h"
 #include "UpdateChecker.h"
+#include "WinHotkey.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -296,6 +298,76 @@ public:
             QStringLiteral("0.3.7"),
             &parseError);
         check(!sameInfo.updateAvailable, "Current version was falsely marked as needing an update.");
+
+        // Regression: untrusted html_url rejected & SHA256SUMS.txt preferred over secondary .sha256 assets
+        const QByteArray trickyReleasePayload = R"({
+            "tag_name": "v0.3.8",
+            "html_url": "file:///C:/Windows/System32/calc.exe",
+            "body": "Test",
+            "assets": [
+                {
+                    "name": "peekpass-0.3.8-win64-setup.exe",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.8/peekpass-0.3.8-win64-setup.exe",
+                    "size": 654321
+                },
+                {
+                    "name": "SHA256SUMS.txt",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.8/SHA256SUMS.txt",
+                    "size": 256
+                },
+                {
+                    "name": "peekpass-v0.3.8-win64.zip.sha256",
+                    "browser_download_url": "https://github.com/j0n9m1n1/peekpass/releases/download/v0.3.8/peekpass-v0.3.8-win64.zip.sha256",
+                    "size": 128
+                }
+            ]
+        })";
+        const UpdateReleaseInfo trickyInfo = UpdateChecker::parseLatestReleaseJson(
+            trickyReleasePayload,
+            QStringLiteral("0.3.7"),
+            &parseError);
+        check(trickyInfo.releaseUrl == QStringLiteral("https://github.com/j0n9m1n1/peekpass/releases/latest"),
+            "Untrusted html_url was not rejected.");
+        check(trickyInfo.checksumsUrl.endsWith(QStringLiteral("/SHA256SUMS.txt")),
+            "Secondary .sha256 asset overwrote SHA256SUMS.txt.");
+
+        // Regression: WinHotkey shifted-key support & modifier-less rejection
+        check(WinHotkey::isSupportedHotkey(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Space)),
+            "Standard Ctrl+Shift+Space hotkey was rejected.");
+        check(WinHotkey::isSupportedHotkey(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Question)),
+            "Shifted Ctrl+Shift+? hotkey was rejected.");
+        check(WinHotkey::isSupportedHotkey(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Bar)),
+            "Shifted Ctrl+Shift+| hotkey was rejected.");
+        check(!WinHotkey::isSupportedHotkey(QKeySequence(Qt::Key_Space)),
+            "Modifier-less Space hotkey was accepted.");
+
+        // Regression: TotpGenerator rejects hotp, handles invalid params, and supports 10-digit codes without overflow
+        QString totpErr;
+        check(TotpGenerator::generateTotpCode(
+                QStringLiteral("otpauth://hotp/Test?secret=JBSWY3DPEHPK3PXP&counter=1"),
+                &totpErr).isEmpty(),
+            "TotpGenerator erroneously accepted an HOTP URI.");
+        const TotpCodeInfo defaultFallbackTotp = TotpGenerator::generateTotpInfo(
+            QStringLiteral("otpauth://totp/Test?secret=JBSWY3DPEHPK3PXP&digits=&period=abc"),
+            &totpErr);
+        check(defaultFallbackTotp.code.size() == 6 && defaultFallbackTotp.period == 30,
+            "Invalid digits/period query params did not fall back to defaults 6/30.");
+        const TotpCodeInfo tenDigitTotp = TotpGenerator::generateTotpInfo(
+            QStringLiteral("otpauth://totp/Test?secret=JBSWY3DPEHPK3PXP&digits=10"),
+            &totpErr);
+        check(tenDigitTotp.code.size() == 10,
+            "10-digit TOTP code was not generated cleanly.");
+
+        // Regression: restorePreservedSearch consumes preserved state once restored
+        AppSettings::setPasswordManagerType(QStringLiteral("protonpass"));
+        window.m_passwordManager = std::make_shared<PasswordManager>(PasswordManager::Type::ProtonPass);
+        seed(window);
+        window.m_search->setText(QStringLiteral("Example"));
+        window.preserveSearchState();
+        check(window.shouldRestorePreservedSearch(), "Preserved search state was not active.");
+        window.restorePreservedSearch();
+        check(!window.shouldRestorePreservedSearch(), "Preserved search state remained active after restore.");
+        window.hide();
 
         UpdateDialog updateDialog(newerInfo);
         snapshot(updateDialog, QStringLiteral("update-dialog-light-ko"));

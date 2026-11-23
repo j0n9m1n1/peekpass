@@ -77,6 +77,14 @@ Press %1 to open quick access.</source>
         <source>Check for updates...</source>
         <translation>업데이트 확인...</translation>
     </message>
+    <message>
+        <source>Could not sign out of the Proton Pass session.</source>
+        <translation>Proton Pass 세션에서 로그아웃하지 못했습니다.</translation>
+    </message>
+    <message>
+        <source>Could not lock the Bitwarden vault.</source>
+        <translation>Bitwarden vault를 잠그지 못했습니다.</translation>
+    </message>
 </context>
 <context>
     <name>WinHotkey</name>
@@ -680,6 +688,12 @@ peekpass는 앱 폴더, Proton Pass 기본 설치 경로, PATH 순서로 확인�
     <message><source>Value copied. (Clears in 30s)</source><translation>항목 값을 복사했습니다. (30초 후 자동 삭제)</translation></message>
     <message><source>Username copied.</source><translation>사용자 이름을 복사했습니다.</translation></message>
     <message><source>TOTP code copied. (Clears in 30s)</source><translation>TOTP 코드를 복사했습니다. (30초 후 자동 삭제)</translation></message>
+    <message><source>This item has no password.</source><translation>이 항목에는 비밀번호가 없습니다.</translation></message>
+    <message><source>This item has no username.</source><translation>이 항목에는 사용자 이름이 없습니다.</translation></message>
+    <message><source>Unsupported OTP type.</source><translation>지원하지 않는 OTP 형식입니다.</translation></message>
+    <message><source>Additional details</source><translation>추가 정보</translation></message>
+    <message><source>Bitwarden Logout</source><translation>Bitwarden 로그아웃</translation></message>
+    <message><source>Could not check Proton Pass status.</source><translation>Proton Pass 상태를 확인하지 못했습니다.</translation></message>
     <message><source>Secure note</source><translation>보안 메모</translation></message>
     <message><source>Card details</source><translation>카드 정보</translation></message>
     <message><source>Cardholder</source><translation>카드 소유자</translation></message>
@@ -1151,6 +1165,10 @@ Esc: 닫기</translation>
     <message>
         <source>Download failed: %1</source>
         <translation>다운로드에 실패했습니다: %1</translation>
+    </message>
+    <message>
+        <source>Download redirected to an untrusted host.</source>
+        <translation>다운로드가 신뢰할 수 없는 호스트로 리디렉션되었습니다.</translation>
     </message>
     <message>
         <source>Verifying installer checksum (SHA-256)...</source>

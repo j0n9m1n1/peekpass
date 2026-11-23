@@ -84,6 +84,13 @@ QString startupExecutableFromCommand(QString command)
             return QDir::fromNativeSeparators(command.mid(1, closingQuote - 1));
     }
 
+    if (QFileInfo::exists(command))
+        return QDir::fromNativeSeparators(command);
+
+    const int exeIndex = command.indexOf(QStringLiteral(".exe"), 0, Qt::CaseInsensitive);
+    if (exeIndex > 0)
+        return QDir::fromNativeSeparators(command.left(exeIndex + 4));
+
     const int firstSpace = command.indexOf(QLatin1Char(' '));
     return QDir::fromNativeSeparators(firstSpace > 0 ? command.left(firstSpace) : command);
 }
@@ -564,6 +571,18 @@ bool AppSettings::applyStartupPreference(QString* errorMessage)
     const QString existingCommand = startupEntryValue(runKey);
     const QString existingExecutable = startupExecutableFromCommand(existingCommand);
     const QString existingRuntimeError = startupRuntimeError(existingExecutable);
+    const QString currentExecutable = QCoreApplication::applicationFilePath();
+    const QString currentRuntimeError = startupRuntimeError(currentExecutable);
+    const bool currentIsInstalled = QFileInfo::exists(
+        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("unins000.exe")));
+
+    if (currentRuntimeError.isEmpty() && currentIsInstalled
+        && QFileInfo(existingExecutable).canonicalFilePath().compare(
+               QFileInfo(currentExecutable).canonicalFilePath(),
+               Qt::CaseInsensitive) != 0) {
+        return setStartOnLoginEnabled(true, errorMessage);
+    }
+
     if (existingRuntimeError.isEmpty()) {
         runKey.setValue(StartOnLoginName, existingCommand);
         runKey.remove(OlderStartOnLoginName);
@@ -578,7 +597,6 @@ bool AppSettings::applyStartupPreference(QString* errorMessage)
         return false;
     }
 
-    const QString currentRuntimeError = startupRuntimeError(QCoreApplication::applicationFilePath());
     if (currentRuntimeError.isEmpty())
         return setStartOnLoginEnabled(true, errorMessage);
 
@@ -706,7 +724,7 @@ QString AppSettings::language()
 void AppSettings::setLanguage(const QString& language)
 {
     const QString normalized = language.trimmed().toLower();
-    QSettings().setValue(LanguageKey, normalized.isEmpty() ? QStringLiteral("en") : normalized);
+    QSettings().setValue(LanguageKey, normalized.isEmpty() ? QStringLiteral("ko") : normalized);
 }
 
 bool AppSettings::isKorean()

@@ -99,7 +99,19 @@ int main(int argc, char* argv[])
     }
 
     QuickWindow window;
+    const auto dialogParent = [&window]() -> QWidget* {
+        if (QWidget* modal = QApplication::activeModalWidget())
+            return modal;
+        return window.isVisible() ? &window : nullptr;
+    };
+
     instance.setActivationHandler([&window] {
+        if (QWidget* modal = QApplication::activeModalWidget()) {
+            modal->show();
+            modal->raise();
+            modal->activateWindow();
+            return;
+        }
         if (window.isVisible()) {
             window.raise();
             window.activateWindow();
@@ -145,6 +157,11 @@ int main(int argc, char* argv[])
     });
 
     QObject::connect(openAction, &QAction::triggered, &window, [&window] {
+        if (QWidget* modal = QApplication::activeModalWidget()) {
+            modal->raise();
+            modal->activateWindow();
+            return;
+        }
         window.showQuick();
     });
 
@@ -152,11 +169,17 @@ int main(int argc, char* argv[])
         window.syncVaultNow();
     });
 
-    QObject::connect(lockAction, &QAction::triggered, &window, [&window, &trayIcon] {
+    QObject::connect(lockAction, &QAction::triggered, &window, [&window, &trayIcon, &dialogParent] {
         QString errorMessage;
         if (window.passwordManagerName() == QStringLiteral("Proton Pass")) {
-            if (!window.lockVault(&errorMessage) && !errorMessage.isEmpty()) {
-                QMessageBox::warning(&window, QStringLiteral("Proton Pass"), errorMessage);
+            if (!window.lockVault(&errorMessage)) {
+                QMessageBox::warning(
+                    dialogParent(),
+                    QStringLiteral("Proton Pass"),
+                    errorMessage.isEmpty()
+                        ? uiText("Could not sign out of the Proton Pass session.",
+                                 "Proton Pass 세션에서 로그아웃하지 못했습니다.")
+                        : errorMessage);
                 return;
             }
 
@@ -164,8 +187,14 @@ int main(int argc, char* argv[])
             return;
         }
 
-        if (!window.lockVault(&errorMessage) && !errorMessage.isEmpty()) {
-            QMessageBox::warning(&window, uiText("Bitwarden Lock", "Bitwarden 잠금"), errorMessage);
+        if (!window.lockVault(&errorMessage)) {
+            QMessageBox::warning(
+                dialogParent(),
+                uiText("Bitwarden Lock", "Bitwarden 잠금"),
+                errorMessage.isEmpty()
+                    ? uiText("Could not lock the Bitwarden vault.",
+                             "Bitwarden vault를 잠그지 못했습니다.")
+                    : errorMessage);
             return;
         }
 
@@ -175,6 +204,11 @@ int main(int argc, char* argv[])
     });
 
     QObject::connect(settingsAction, &QAction::triggered, &window, [&window] {
+        if (QWidget* modal = QApplication::activeModalWidget()) {
+            modal->raise();
+            modal->activateWindow();
+            return;
+        }
         window.showSettings();
     });
 
@@ -189,8 +223,14 @@ int main(int argc, char* argv[])
 
     QObject::connect(&trayIcon, &QSystemTrayIcon::activated, &window,
         [&window](QSystemTrayIcon::ActivationReason reason) {
-            if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
+            if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick) {
+                if (QWidget* modal = QApplication::activeModalWidget()) {
+                    modal->raise();
+                    modal->activateWindow();
+                    return;
+                }
                 window.showQuick();
+            }
         });
 
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
@@ -206,23 +246,41 @@ int main(int argc, char* argv[])
 #ifdef Q_OS_WIN
     WinHotkey hotkey(&window);
     app.installNativeEventFilter(&hotkey);
+    QKeySequence activeHotkey = AppSettings::showHotkey();
+
+    window.setSettingsDialogStateCallback([&hotkey](bool open) {
+        if (open)
+            hotkey.unregisterHotkey();
+        else
+            hotkey.registerHotkey();
+    });
 
     window.setSettingsChangedCallback([&] {
         reloadTranslator();
         updateTrayTexts();
+        const QKeySequence requestedHotkey = AppSettings::showHotkey();
         hotkey.unregisterHotkey();
-        if (!hotkey.registerHotkey()) {
-            QMessageBox::warning(
-                &window,
-                uiText("Hotkey", "단축키"),
-                QString("%1\n\n%2\n\n%3")
-                    .arg(uiText("Failed to register the configured hotkey.",
-                                "설정된 단축키를 등록하지 못했습니다."),
-                        hotkey.lastError(),
-                        uiText("Another app, such as 1Password, may already be using this shortcut.",
-                               "1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다."))
-            );
+        if (hotkey.registerHotkey()) {
+            activeHotkey = requestedHotkey;
+            return;
         }
+
+        const QString failureDetail = hotkey.lastError();
+        if (!activeHotkey.isEmpty() && activeHotkey != requestedHotkey) {
+            AppSettings::setShowHotkey(activeHotkey);
+            hotkey.registerHotkey();
+        }
+
+        QMessageBox::warning(
+            dialogParent(),
+            uiText("Hotkey", "단축키"),
+            QString("%1\n\n%2\n\n%3")
+                .arg(uiText("Failed to register the configured hotkey.",
+                            "설정된 단축키를 등록하지 못했습니다."),
+                    failureDetail,
+                    uiText("Another app, such as 1Password, may already be using this shortcut.",
+                           "1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다."))
+        );
     });
 
     if (!hotkey.registerHotkey()) {
@@ -237,6 +295,10 @@ int main(int argc, char* argv[])
                            "1Password 같은 다른 앱이 이미 이 단축키를 사용 중일 수 있습니다.")));
     }
 #else
+    window.setSettingsChangedCallback([&] {
+        reloadTranslator();
+        updateTrayTexts();
+    });
     window.showQuick();
 #endif
 

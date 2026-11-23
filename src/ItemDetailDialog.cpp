@@ -16,8 +16,10 @@
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QResizeEvent>
 #include <QScrollArea>
+#include <QSet>
 #include <QShortcut>
 #include <QStyle>
 #include <QUrl>
@@ -412,11 +414,11 @@ QUrl normalizedItemUrl(const QString& value)
     if (trimmed.isEmpty())
         return {};
 
-    QUrl url(trimmed);
-    if (url.scheme().isEmpty() || url.host().isEmpty())
-        url = QUrl(QStringLiteral("https://") + trimmed);
+    static const QRegularExpression schemeRegex(QStringLiteral("^[a-zA-Z][a-zA-Z0-9+.-]*:"));
+    if (schemeRegex.match(trimmed).hasMatch())
+        return QUrl(trimmed);
 
-    return url;
+    return QUrl(QStringLiteral("https://") + trimmed);
 }
 
 QUrl webUrlForItemUri(const QString& value)
@@ -471,26 +473,69 @@ QString compactLongToken(const QString& value, int maxLength = 34)
     return trimmed.left(head) + QStringLiteral("\u2026") + trimmed.right(tail);
 }
 
-bool isRedundantProtonSection(const QString& title, int typeCode)
+bool isMetadataProtonSection(const QString& title)
 {
-    if (title == uiText("항목 데이터", "Item data")
+    return title == uiText("항목 데이터", "Item data")
         || title == uiText("Proton Pass 메타데이터", "Proton Pass metadata")
         || title == QStringLiteral("Item data")
-        || title == QStringLiteral("Proton Pass metadata")) {
+        || title == QStringLiteral("항목 데이터")
+        || title == QStringLiteral("Proton Pass metadata")
+        || title == QStringLiteral("Proton Pass 메타데이터");
+}
+
+bool isPrimaryProtonSection(const QString& title, int typeCode)
+{
+    if (typeCode == 1 && (title == uiText("로그인", "Login") || title == QStringLiteral("Login") || title == QStringLiteral("로그인")))
         return true;
+    if (typeCode == 2 && (title == uiText("보안 메모", "Secure note") || title == QStringLiteral("Secure note") || title == QStringLiteral("보안 메모")))
+        return true;
+    if (typeCode == 3 && (title == uiText("카드", "Card") || title == QStringLiteral("Card") || title == QStringLiteral("카드")))
+        return true;
+    if (typeCode == 4 && (title == uiText("신원", "Identity") || title == QStringLiteral("Identity") || title == QStringLiteral("신원")))
+        return true;
+    if (typeCode == 5 && (title == uiText("SSH 키", "SSH key") || title == QStringLiteral("SSH key") || title == QStringLiteral("SSH 키")))
+        return true;
+    return false;
+}
+
+bool isAlreadyRenderedPrimaryProtonField(const VaultDetailField& field, const VaultItemDetails& details)
+{
+    const QString key = field.name.trimmed().toLower();
+    if (details.typeCode == 1) {
+        if (key == QStringLiteral("username") || key == QStringLiteral("password") || key == QStringLiteral("totp uri"))
+            return true;
+        if (key == QStringLiteral("email") && field.value == details.username)
+            return true;
+        return false;
     }
-
-    if (typeCode == 1 && (title == uiText("로그인", "Login") || title == QStringLiteral("Login")))
-        return true;
-    if (typeCode == 2 && (title == uiText("보안 메모", "Secure note") || title == QStringLiteral("Secure note")))
-        return true;
-    if (typeCode == 3 && (title == uiText("카드", "Card") || title == QStringLiteral("Card")))
-        return true;
-    if (typeCode == 4 && (title == uiText("신원", "Identity") || title == QStringLiteral("Identity")))
-        return true;
-    if (typeCode == 5 && (title == uiText("SSH 키", "SSH key") || title == QStringLiteral("SSH key")))
-        return true;
-
+    if (details.typeCode == 3) {
+        return key == QStringLiteral("cardholder name")
+            || key == QStringLiteral("card type")
+            || key == QStringLiteral("number")
+            || key == QStringLiteral("verification number")
+            || key == QStringLiteral("expiration date");
+    }
+    if (details.typeCode == 4) {
+        return key == QStringLiteral("first name")
+            || key == QStringLiteral("middle name")
+            || key == QStringLiteral("last name")
+            || key == QStringLiteral("company")
+            || key == QStringLiteral("email")
+            || key == QStringLiteral("phone number")
+            || key == QStringLiteral("street address")
+            || key == QStringLiteral("city")
+            || key == QStringLiteral("state or province")
+            || key == QStringLiteral("zip or postal code")
+            || key == QStringLiteral("country or region")
+            || key == QStringLiteral("passport number")
+            || key == QStringLiteral("license number")
+            || key == QStringLiteral("social security number")
+            || key == QStringLiteral("website")
+            || key == QStringLiteral("personal website");
+    }
+    if (details.typeCode == 5) {
+        return key == QStringLiteral("private key") || key == QStringLiteral("public key");
+    }
     return false;
 }
 }
@@ -522,17 +567,17 @@ ItemDetailDialog::ItemDetailDialog(const QString& itemId,
 
     auto* headerRow = new QHBoxLayout;
     headerRow->setContentsMargins(0, 0, 0, 0);
-    auto* windowTitleLabel = new QLabel(uiText("상세보기", "Details"), this);
-    windowTitleLabel->setObjectName("detailWindowTitle");
-    windowTitleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
-    headerRow->addWidget(windowTitleLabel);
+    m_windowTitleLabel = new QLabel(uiText("상세보기", "Details"), this);
+    m_windowTitleLabel->setObjectName("detailWindowTitle");
+    m_windowTitleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+    headerRow->addWidget(m_windowTitleLabel);
     headerRow->addStretch(1);
 
-    auto* closeIconButton = new QPushButton(QStringLiteral("\u00D7"), this);
-    closeIconButton->setObjectName("detailCloseIconButton");
-    closeIconButton->setToolTip(uiText("닫기 (Esc)", "Close (Esc)"));
-    connect(closeIconButton, &QPushButton::clicked, this, &QDialog::close);
-    headerRow->addWidget(closeIconButton);
+    m_closeIconButton = new QPushButton(QStringLiteral("\u00D7"), this);
+    m_closeIconButton->setObjectName("detailCloseIconButton");
+    m_closeIconButton->setToolTip(uiText("닫기 (Esc)", "Close (Esc)"));
+    connect(m_closeIconButton, &QPushButton::clicked, this, &QDialog::close);
+    headerRow->addWidget(m_closeIconButton);
     root->addLayout(headerRow);
 
     auto* scrollArea = new QScrollArea(this);
@@ -557,10 +602,10 @@ ItemDetailDialog::ItemDetailDialog(const QString& itemId,
 
     auto* footerRow = new QHBoxLayout;
     footerRow->addStretch(1);
-    auto* closeButton = new QPushButton(uiText("닫기", "Close"), this);
-    closeButton->setObjectName("detailCloseButton");
-    connect(closeButton, &QPushButton::clicked, this, &QDialog::close);
-    footerRow->addWidget(closeButton);
+    m_closeButton = new QPushButton(uiText("닫기", "Close"), this);
+    m_closeButton->setObjectName("detailCloseButton");
+    connect(m_closeButton, &QPushButton::clicked, this, &QDialog::close);
+    footerRow->addWidget(m_closeButton);
     root->addLayout(footerRow);
 
     auto* escapeShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), this);
@@ -577,6 +622,9 @@ ItemDetailDialog::ItemDetailDialog(const QString& itemId,
 ItemDetailDialog::~ItemDetailDialog()
 {
     m_totpTimer.stop();
+    for (LiveTotpBinding& binding : m_liveTotpBindings)
+        scrubSecretString(binding.secretOrUri);
+    m_liveTotpBindings.clear();
     m_details.scrub();
 }
 
@@ -604,6 +652,17 @@ void ItemDetailDialog::setError(const QString& errorMessage)
 
 void ItemDetailDialog::applyThemeStyle()
 {
+    const QString titleText = uiText("상세보기", "Details");
+    setWindowTitle(titleText);
+    if (m_windowTitleLabel)
+        m_windowTitleLabel->setText(titleText);
+    if (m_closeIconButton)
+        m_closeIconButton->setToolTip(uiText("닫기 (Esc)", "Close (Esc)"));
+    if (m_closeButton)
+        m_closeButton->setText(uiText("닫기", "Close"));
+    if (m_loadingLabel && !m_hasDetails && m_errorMessage.isEmpty())
+        m_loadingLabel->setText(uiText("상세 정보를 불러오는 중...", "Loading item details..."));
+
     setStyleSheet(detailDialogStyleSheet());
     updateWindowMask();
     if (m_hasDetails || !m_errorMessage.isEmpty())
@@ -660,7 +719,11 @@ void ItemDetailDialog::updateWindowMask()
 void ItemDetailDialog::rebuildContent()
 {
     m_totpTimer.stop();
+    for (LiveTotpBinding& binding : m_liveTotpBindings)
+        scrubSecretString(binding.secretOrUri);
     m_liveTotpBindings.clear();
+    m_loadingLabel = nullptr;
+    m_loadingBar = nullptr;
 
     while (QLayoutItem* item = m_contentLayout->takeAt(0)) {
         if (QWidget* widget = item->widget()) {
@@ -753,15 +816,14 @@ void ItemDetailDialog::rebuildContent()
         if (sensitive && !plainValue.isEmpty()) {
             auto* toggleButton = new QPushButton(uiText("보기", "Show"), this);
             toggleButton->setObjectName("detailSecondaryButton");
-            const QString revealedDisplay = compactLongToken(plainValue, 36);
-            connect(toggleButton, &QPushButton::clicked, valueWidget, [valueWidget, toggleButton, plainValue, revealedDisplay, maskedText] {
+            connect(toggleButton, &QPushButton::clicked, valueWidget, [valueWidget, toggleButton, plainValue, maskedText] {
                 const bool currentlyRevealed = toggleButton->property("peekpassRevealed").toBool();
                 const bool nextRevealed = !currentlyRevealed;
                 toggleButton->setProperty("peekpassRevealed", nextRevealed);
                 toggleButton->setText(nextRevealed ? uiText("숨기기", "Hide") : uiText("보기", "Show"));
                 valueWidget->setObjectName(nextRevealed ? "detailMonoValue" : "detailValue");
-                valueWidget->setText(nextRevealed ? revealedDisplay : maskedText);
-                valueWidget->setToolTip(nextRevealed && revealedDisplay != plainValue ? plainValue : QString());
+                valueWidget->setText(nextRevealed ? plainValue : maskedText);
+                valueWidget->setToolTip(nextRevealed ? plainValue : QString());
                 valueWidget->style()->unpolish(valueWidget);
                 valueWidget->style()->polish(valueWidget);
             });
@@ -783,6 +845,8 @@ void ItemDetailDialog::rebuildContent()
         form->addWidget(valueWidget, row, 1, Qt::AlignVCenter);
         if (actionsLayout->count() > 1)
             form->addLayout(actionsLayout, row, 2, Qt::AlignRight | Qt::AlignVCenter);
+        else
+            delete actionsLayout;
         return row + 1;
     };
 
@@ -931,18 +995,8 @@ void ItemDetailDialog::rebuildContent()
     }
 
     // 2. Primary Type-Specific Card (Unified for both Bitwarden & Proton Pass)
-    if (m_details.typeCode == 1 || (!m_details.username.isEmpty() || !m_details.password.isEmpty() || !m_details.totp.isEmpty())) {
-        QVBoxLayout* credentialsLayout = makeCard(uiText("로그인 정보", "Login credentials"));
-        QGridLayout* credentialsForm = makeDetailForm();
-        int row = 0;
-        row = addDetailRow(credentialsForm, row, uiText("사용자 이름", "Username"), m_details.username, m_details.username);
-        row = addDetailRow(credentialsForm, row, uiText("비밀번호", "Password"), m_details.password, m_details.password, true);
-        if (!m_details.totp.isEmpty())
-            row = addLiveTotpRow(credentialsForm, row, uiText("TOTP", "TOTP"), m_details.totp, true);
-        if (row == 0)
-            addDetailRow(credentialsForm, row, uiText("상태", "Status"), uiText("로그인 필드 없음", "No login fields"));
-        credentialsLayout->addLayout(credentialsForm);
-    } else if (m_details.typeCode == 3) {
+    bool primaryTotpRendered = false;
+    if (m_details.typeCode == 3) {
         QVBoxLayout* cardLayout = makeCard(uiText("카드 정보", "Card details"));
         QGridLayout* cardForm = makeDetailForm();
         int row = 0;
@@ -1013,6 +1067,19 @@ void ItemDetailDialog::rebuildContent()
         if (row == 0)
             addDetailRow(sshForm, row, uiText("상태", "Status"), uiText("SSH 키 필드 없음", "No SSH key fields"));
         sshLayout->addLayout(sshForm);
+    } else if (m_details.typeCode == 1) {
+        QVBoxLayout* credentialsLayout = makeCard(uiText("로그인 정보", "Login credentials"));
+        QGridLayout* credentialsForm = makeDetailForm();
+        int row = 0;
+        row = addDetailRow(credentialsForm, row, uiText("사용자 이름", "Username"), m_details.username, m_details.username);
+        row = addDetailRow(credentialsForm, row, uiText("비밀번호", "Password"), m_details.password, m_details.password, true);
+        if (!m_details.totp.isEmpty()) {
+            row = addLiveTotpRow(credentialsForm, row, uiText("TOTP", "TOTP"), m_details.totp, true);
+            primaryTotpRendered = true;
+        }
+        if (row == 0)
+            addDetailRow(credentialsForm, row, uiText("상태", "Status"), uiText("로그인 필드 없음", "No login fields"));
+        credentialsLayout->addLayout(credentialsForm);
     }
 
     // 3. Websites Card (with Open + Copy buttons per URL)
@@ -1054,14 +1121,17 @@ void ItemDetailDialog::rebuildContent()
 
     if (protonPassDetails) {
         for (const VaultDetailSection& section : m_details.providerSections) {
-            if (isRedundantProtonSection(section.title, m_details.typeCode))
+            if (isMetadataProtonSection(section.title))
                 continue;
 
+            const bool primarySection = isPrimaryProtonSection(section.title, m_details.typeCode);
             QGridLayout* sectionForm = makeDetailForm();
             int row = 0;
             for (const VaultDetailField& field : section.fields) {
+                if (primarySection && isAlreadyRenderedPrimaryProtonField(field, m_details))
+                    continue;
                 if (field.totpSecret) {
-                    if (field.value == m_details.totp)
+                    if (primaryTotpRendered && field.value == m_details.totp)
                         continue;
                     row = addLiveTotpRow(sectionForm, row, field.name, field.value, false);
                     continue;
@@ -1080,7 +1150,10 @@ void ItemDetailDialog::rebuildContent()
                     visibleTail);
             }
             if (row > 0) {
-                QVBoxLayout* sectionLayout = makeCard(section.title);
+                const QString cardTitle = primarySection
+                    ? uiText("추가 정보", "Additional details")
+                    : section.title;
+                QVBoxLayout* sectionLayout = makeCard(cardTitle);
                 sectionLayout->addLayout(sectionForm);
             } else {
                 delete sectionForm;
@@ -1147,14 +1220,7 @@ void ItemDetailDialog::updateLiveTotpRows()
             continue;
 
         QString errorMessage;
-        TotpCodeInfo info = TotpGenerator::generateTotpInfo(binding.secretOrUri, &errorMessage);
-        if (info.code.isEmpty() && binding.useItemFallback && m_totpFallback) {
-            info.code = m_totpFallback(m_itemId, &errorMessage);
-            const qint64 now = QDateTime::currentSecsSinceEpoch();
-            info.period = 30;
-            info.remainingSeconds = 30 - static_cast<int>(now % 30);
-        }
-
+        const TotpCodeInfo info = TotpGenerator::generateTotpInfo(binding.secretOrUri, &errorMessage);
         if (info.code.isEmpty()) {
             binding.codeLabel->setText(QStringLiteral("------"));
             binding.timerLabel->setVisible(false);

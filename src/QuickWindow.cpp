@@ -467,9 +467,19 @@ QUrl normalizedItemUrl(const QString& value)
     if (trimmed.isEmpty())
         return {};
 
-    QUrl url(trimmed);
-    if (url.scheme().isEmpty() || url.host().isEmpty())
-        url = QUrl(QStringLiteral("https://") + trimmed);
+    static const QRegularExpression schemeRegex(QStringLiteral("^[a-zA-Z][a-zA-Z0-9+.-]*:"));
+    if (schemeRegex.match(trimmed).hasMatch())
+        return QUrl(trimmed);
+
+    return QUrl(QStringLiteral("https://") + trimmed);
+}
+
+QUrl webUrlForItemUri(const QString& value)
+{
+    const QUrl url = normalizedItemUrl(value);
+    const QString scheme = url.scheme().toLower();
+    if ((scheme != QStringLiteral("http") && scheme != QStringLiteral("https")) || url.host().isEmpty())
+        return {};
 
     return url;
 }
@@ -477,7 +487,7 @@ QUrl normalizedItemUrl(const QString& value)
 QString faviconHostForItem(const VaultItem& item)
 {
     for (const QString& uri : item.uris) {
-        const QUrl url = normalizedItemUrl(uri);
+        const QUrl url = webUrlForItemUri(uri);
         const QString host = url.host().trimmed().toLower();
         if (!host.isEmpty())
             return host;
@@ -489,7 +499,7 @@ QString faviconHostForItem(const VaultItem& item)
 QUrl faviconUrlForItem(const VaultItem& item)
 {
     for (const QString& uri : item.uris) {
-        const QUrl sourceUrl = normalizedItemUrl(uri);
+        const QUrl sourceUrl = webUrlForItemUri(uri);
         const QString host = sourceUrl.host().trimmed().toLower();
         if (host.isEmpty())
             continue;
@@ -878,6 +888,10 @@ QuickWindow::QuickWindow(QWidget* parent)
         prepareVault(false);
     });
 
+    connect(m_search, &QLineEdit::textEdited, this, [this] {
+        clearPreservedSearchState();
+    });
+
     connect(m_search, &QLineEdit::textChanged, this, [this] {
         if (m_itemsReady || m_search->text().trimmed().isEmpty()) {
             m_debounce.stop();
@@ -931,7 +945,7 @@ QuickWindow::QuickWindow(QWidget* parent)
 
         QAction* openWebsiteAction = nullptr;
         const bool hasWebsite = cached && std::any_of(cached->uris.cbegin(), cached->uris.cend(), [](const QString& u) {
-            return !u.trimmed().isEmpty();
+            return webUrlForItemUri(u).isValid();
         });
         if (hasWebsite) {
             menu.addSeparator();
@@ -953,25 +967,14 @@ QuickWindow::QuickWindow(QWidget* parent)
 
     auto* escape = new QShortcut(QKeySequence(Qt::Key_Escape), this);
     connect(escape, &QShortcut::activated, this, [this] {
+        if (m_authMode != AuthMode::None) {
+            if (m_authWatcher.isRunning())
+                return;
+            m_authPassword->clear();
+            m_authCode->clear();
+            m_authExtraPassword->clear();
+        }
         hide();
-    });
-
-    auto* returnShortcut = new QShortcut(QKeySequence(Qt::Key_Return), this);
-    connect(returnShortcut, &QShortcut::activated, this, [this] {
-        if (m_authMode != AuthMode::None) {
-            submitAuth();
-            return;
-        }
-        copyPassword(currentItem());
-    });
-
-    auto* enterShortcut = new QShortcut(QKeySequence(Qt::Key_Enter), this);
-    connect(enterShortcut, &QShortcut::activated, this, [this] {
-        if (m_authMode != AuthMode::None) {
-            submitAuth();
-            return;
-        }
-        copyPassword(currentItem());
     });
 
     auto* copyUsernameShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_C), this);
@@ -982,18 +985,20 @@ QuickWindow::QuickWindow(QWidget* parent)
             m_search->copy();
             return;
         }
+        if (AppSettings::shortcutPreset() == QStringLiteral("bitwarden"))
+            return;
         copyUsername(currentItem());
     });
 
     auto* copyPasswordShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_C), this);
     connect(copyPasswordShortcut, &QShortcut::activated, this, [this] {
-        if (m_authMode == AuthMode::None)
+        if (m_authMode == AuthMode::None && AppSettings::shortcutPreset() != QStringLiteral("bitwarden"))
             copyPassword(currentItem());
     });
 
     auto* copyTotpCtrlShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C), this);
     connect(copyTotpCtrlShortcut, &QShortcut::activated, this, [this] {
-        if (m_authMode == AuthMode::None)
+        if (m_authMode == AuthMode::None && AppSettings::shortcutPreset() != QStringLiteral("bitwarden"))
             copyTotp(currentItem());
     });
 
@@ -1005,19 +1010,19 @@ QuickWindow::QuickWindow(QWidget* parent)
 
     auto* copyUsernameReturn = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Return), this);
     connect(copyUsernameReturn, &QShortcut::activated, this, [this] {
-        if (m_authMode == AuthMode::None)
+        if (m_authMode == AuthMode::None && AppSettings::shortcutPreset() == QStringLiteral("bitwarden"))
             copyUsername(currentItem());
     });
 
     auto* copyUsernameEnter = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Enter), this);
     connect(copyUsernameEnter, &QShortcut::activated, this, [this] {
-        if (m_authMode == AuthMode::None)
+        if (m_authMode == AuthMode::None && AppSettings::shortcutPreset() == QStringLiteral("bitwarden"))
             copyUsername(currentItem());
     });
 
     auto* copyTotpShortcut = new QShortcut(QKeySequence(Qt::ALT | Qt::Key_T), this);
     connect(copyTotpShortcut, &QShortcut::activated, this, [this] {
-        if (m_authMode == AuthMode::None)
+        if (m_authMode == AuthMode::None && AppSettings::shortcutPreset() == QStringLiteral("bitwarden"))
             copyTotp(currentItem());
     });
 
@@ -1036,6 +1041,11 @@ QuickWindow::QuickWindow(QWidget* parent)
     });
 
     connect(m_authCancel, &QPushButton::clicked, this, [this] {
+        if (m_authWatcher.isRunning())
+            return;
+        m_authPassword->clear();
+        m_authCode->clear();
+        m_authExtraPassword->clear();
         hide();
     });
 
@@ -1116,10 +1126,14 @@ QuickWindow::~QuickWindow()
 void QuickWindow::clearVaultCache()
 {
     ++m_vaultGeneration;
-    m_pendingVaultAction = {};
+    m_pendingVaultActions.clear();
     closeDetailWindows();
     m_refreshTimer.stop();
     m_itemsReady = false;
+    if (!m_itemsWatcher.isRunning()) {
+        const QSignalBlocker blocker(m_itemsWatcher);
+        m_itemsWatcher.setFuture(QFuture<ItemsResult>{});
+    }
     for (VaultItem& item : m_cachedItems)
         item.scrub();
     m_cachedItems.clear();
@@ -1127,9 +1141,7 @@ void QuickWindow::clearVaultCache()
     m_faviconCache.clear();
     m_pendingFavicons.clear();
     m_queuedSearchText.clear();
-    m_preservedSearchText.clear();
-    m_preservedItemId.clear();
-    m_preservedSearchTimer.invalidate();
+    clearPreservedSearchState();
     m_list->clear();
     m_list->setVisible(false);
     m_list->setEnabled(true);
@@ -1142,7 +1154,7 @@ void QuickWindow::verifyVaultAction(std::function<void()> action)
 {
     if (m_resetting || m_authMode != AuthMode::None || m_authWatcher.isRunning())
         return;
-    m_pendingVaultAction = std::move(action);
+    m_pendingVaultActions.push_back(std::move(action));
     prepareVault(true);
 }
 
@@ -1160,13 +1172,18 @@ void QuickWindow::applySettings()
         m_faviconCache.clear();
     if (!AppSettings::showResultIcons() || !AppSettings::fetchFaviconsFromWeb())
         m_pendingFavicons.clear();
-    if (m_list) {
+    if (m_itemsReady && m_authMode == AuthMode::None && m_search && !m_search->text().trimmed().isEmpty()) {
+        startSearch(m_search->text());
+    } else if (m_list) {
         for (int rowIndex = 0; rowIndex < m_list->count(); ++rowIndex) {
             QListWidgetItem* row = m_list->item(rowIndex);
             if (!row)
                 continue;
 
             const VaultItem* item = cachedItemById(row->data(ItemIdRole).toString());
+            row->setSizeHint(QSize(0, resultRowHeight()));
+            if (item)
+                row->setText(displayName(*item));
             if (!AppSettings::showResultIcons() || !item) {
                 row->setIcon(QIcon());
                 continue;
@@ -1180,10 +1197,15 @@ void QuickWindow::applySettings()
     updateAutoSyncTimer();
     updateFooter();
     updateWindowSize();
+    if (isVisible())
+        moveToConfiguredPosition();
 }
 
 void QuickWindow::reloadPasswordManager()
 {
+    if (!AppSettings::credentialSessionStorageEnabled())
+        BwClient::clearStoredSessionData();
+
     const PasswordManager::Type configuredType = AppSettings::passwordManagerType() == QStringLiteral("protonpass")
         ? PasswordManager::Type::ProtonPass
         : PasswordManager::Type::Bitwarden;
@@ -1193,6 +1215,7 @@ void QuickWindow::reloadPasswordManager()
         return;
     }
 
+    const bool wasInAuthMode = m_authMode != AuthMode::None;
     clearVaultCache();
     m_passwordManager = std::make_shared<PasswordManager>();
     m_refreshTimer.stop();
@@ -1205,11 +1228,21 @@ void QuickWindow::reloadPasswordManager()
         m_list->clear();
         m_list->setVisible(false);
     }
+    if (wasInAuthMode) {
+        hideAuthPanel();
+        if (isVisible())
+            showAuthPanel(AuthMode::Login);
+    }
 }
 
 void QuickWindow::setSettingsChangedCallback(std::function<void()> callback)
 {
     m_settingsChanged = std::move(callback);
+}
+
+void QuickWindow::setSettingsDialogStateCallback(std::function<void(bool)> callback)
+{
+    m_settingsDialogStateCallback = std::move(callback);
 }
 
 void QuickWindow::setNotificationCallback(std::function<void(const QString&)> callback)
@@ -1253,18 +1286,35 @@ bool QuickWindow::eventFilter(QObject* watched, QEvent* event)
     if ((watched == m_search || watched == m_list) && event->type() == QEvent::KeyPress && m_authMode == AuthMode::None) {
         auto* keyEvent = static_cast<QKeyEvent*>(event);
         const Qt::KeyboardModifiers modifiers = keyEvent->modifiers();
+        const bool bitwardenPreset = AppSettings::shortcutPreset() == QStringLiteral("bitwarden");
 
-        if (keyEvent->key() == Qt::Key_C && modifiers.testFlag(Qt::ControlModifier)) {
-            if (modifiers.testFlag(Qt::ShiftModifier)) {
-                copyPassword(currentItem());
-            } else if (modifiers.testFlag(Qt::AltModifier)) {
-                copyTotp(currentItem());
-            } else {
-                if (watched == m_search && m_search->hasSelectedText())
+        if (bitwardenPreset) {
+            if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+                if (modifiers.testFlag(Qt::ControlModifier))
+                    copyUsername(currentItem());
+                else if (modifiers == Qt::NoModifier || modifiers == Qt::KeypadModifier)
+                    copyPassword(currentItem());
+                else
                     return false;
-                copyUsername(currentItem());
+                return true;
             }
-            return true;
+            if (keyEvent->key() == Qt::Key_T && modifiers.testFlag(Qt::AltModifier)) {
+                copyTotp(currentItem());
+                return true;
+            }
+        } else {
+            if (keyEvent->key() == Qt::Key_C && modifiers.testFlag(Qt::ControlModifier)) {
+                if (modifiers.testFlag(Qt::ShiftModifier)) {
+                    copyPassword(currentItem());
+                } else if (modifiers.testFlag(Qt::AltModifier)) {
+                    copyTotp(currentItem());
+                } else {
+                    if (watched == m_search && m_search->hasSelectedText())
+                        return false;
+                    copyUsername(currentItem());
+                }
+                return true;
+            }
         }
 
         if (keyEvent->key() == Qt::Key_O
@@ -1490,7 +1540,7 @@ bool QuickWindow::logoutVault(QString* errorMessage)
         show();
         raise();
         activateWindow();
-        m_authEmail->setFocus();
+        focusAuthPrimaryInput();
     }
 
     return loggedOut;
@@ -1550,6 +1600,8 @@ void QuickWindow::showQuick()
         const bool focusInside = QApplication::focusWidget()
             && (QApplication::focusWidget() == this || isAncestorOf(QApplication::focusWidget()));
         if (isActiveWindow() || focusInside) {
+            if (m_authMode != AuthMode::None && m_authWatcher.isRunning())
+                return;
             hide();
             return;
         }
@@ -1559,7 +1611,16 @@ void QuickWindow::showQuick()
         if (m_authMode == AuthMode::None)
             m_search->setFocus();
         else
-            m_authPassword->setFocus();
+            focusAuthPrimaryInput();
+        return;
+    }
+
+    if (m_authWatcher.isRunning() && m_authMode != AuthMode::None) {
+        updateWindowSize();
+        moveToConfiguredPosition();
+        show();
+        raise();
+        activateWindow();
         return;
     }
 
@@ -1590,7 +1651,7 @@ void QuickWindow::showQuick()
         return;
     }
 
-    if (m_itemsWatcher.isRunning()) {
+    if (m_itemsWatcher.isRunning() && m_passwordManager->hasSession()) {
         m_quietItemLoad = false;
         setBusy(true, uiText("Bitwarden 항목 불러오는 중...", "Loading Bitwarden items..."));
         if (m_passwordManager->type() == PasswordManager::Type::ProtonPass)
@@ -1605,20 +1666,38 @@ void QuickWindow::showQuick()
 
 void QuickWindow::openSettings()
 {
-    SettingsDialog dialog(this);
-    if (dialog.exec() != QDialog::Accepted)
+    if (m_settingsOpen)
         return;
 
+    m_settingsOpen = true;
+    if (m_settingsDialogStateCallback)
+        m_settingsDialogStateCallback(true);
+
+    SettingsDialog dialog(isVisible() ? this : nullptr);
+    const int result = dialog.exec();
+
+    m_settingsOpen = false;
+
+    if (result != QDialog::Accepted) {
+        if (m_settingsDialogStateCallback)
+            m_settingsDialogStateCallback(false);
+        return;
+    }
+
     if (dialog.resetRequested()) {
+        if (m_settingsDialogStateCallback)
+            m_settingsDialogStateCallback(false);
         resetApplicationData();
         return;
     }
 
     if (dialog.logoutRequested()) {
+        if (m_settingsDialogStateCallback)
+            m_settingsDialogStateCallback(false);
         QString errorMessage;
         if (!logoutPasswordManager(dialog.logoutPasswordManagerType(), &errorMessage) && !errorMessage.isEmpty()) {
             QMessageBox::warning(
-                this,
+                isVisible() ? this : nullptr,
                 dialog.logoutPasswordManagerType() == QStringLiteral("protonpass")
                     ? QStringLiteral("Proton Pass")
                     : uiText("Bitwarden 로그아웃", "Bitwarden Logout"),
@@ -1627,11 +1706,13 @@ void QuickWindow::openSettings()
         return;
     }
 
-    applySettings();
-
+    reloadPasswordManager();
     if (m_settingsChanged)
         m_settingsChanged();
+    else if (m_settingsDialogStateCallback)
+        m_settingsDialogStateCallback(false);
 
+    applySettings();
     preloadVault();
 }
 
@@ -2183,10 +2264,20 @@ void QuickWindow::startItemLoad(bool forceRefresh, bool quiet)
 
 void QuickWindow::handleItemsFinished()
 {
-    if (m_resetting)
+    if (m_resetting) {
+        const QSignalBlocker blocker(m_itemsWatcher);
+        m_itemsWatcher.setFuture(QFuture<ItemsResult>{});
+        return;
+    }
+
+    if (m_itemsWatcher.future().resultCount() == 0)
         return;
 
-    const ItemsResult result = m_itemsWatcher.result();
+    ItemsResult result = m_itemsWatcher.result();
+    {
+        const QSignalBlocker blocker(m_itemsWatcher);
+        m_itemsWatcher.setFuture(QFuture<ItemsResult>{});
+    }
     const bool quiet = m_quietItemLoad;
     m_quietItemLoad = false;
     const bool wasSyncing = m_syncing;
@@ -2195,11 +2286,15 @@ void QuickWindow::handleItemsFinished()
         setBusy(false);
 
     if (result.generation != m_vaultGeneration) {
+        for (VaultItem& item : result.items)
+            item.scrub();
         updateFooter();
         return;
     }
 
     if (!m_passwordManager->hasSession() || !result.errorMessage.isEmpty()) {
+        for (VaultItem& item : result.items)
+            item.scrub();
         clearVaultCache();
         if (quiet && !m_intentionallyLocked && m_authMode == AuthMode::None)
             schedulePreloadRetry(30000);
@@ -2217,24 +2312,27 @@ void QuickWindow::handleItemsFinished()
     m_silentPreloadRetry = false;
     for (VaultItem& item : m_cachedItems)
         item.scrub();
-    m_cachedItems = result.items;
+    m_cachedItems = std::move(result.items);
     m_itemsReady = true;
     updateAutoSyncTimer();
 
-    const QString keyword = shouldRestorePreservedSearch()
-        ? m_preservedSearchText.trimmed()
-        : m_search->text().trimmed();
-    if (!keyword.isEmpty())
+    const QString keyword = m_search ? m_search->text().trimmed() : QString();
+    if (!keyword.isEmpty() && (isVisible() || !quiet))
         startSearch(keyword);
     else if (!quiet)
         setStatus({});
 
     if (wasSyncing) {
         if (isVisible()) {
-            setStatus(uiText("동기화 완료", "Sync complete"));
-            QTimer::singleShot(1400, this, [this] {
-                if (!m_itemsWatcher.isRunning())
+            const QString syncCompleteText = uiText("동기화 완료", "Sync complete");
+            setStatus(syncCompleteText);
+            QTimer::singleShot(1400, this, [this, syncCompleteText] {
+                if (!m_itemsWatcher.isRunning()
+                    && ((m_status && m_status->text() == syncCompleteText)
+                        || (m_search && m_search->text().trimmed().isEmpty()
+                            && m_search->placeholderText() == syncCompleteText))) {
                     setStatus({});
+                }
             });
         } else if (m_notificationCallback) {
             m_notificationCallback(uiText("보관함 동기화를 완료했습니다.", "Vault sync complete."));
@@ -2287,13 +2385,24 @@ void QuickWindow::restorePreservedSearch()
     if (!shouldRestorePreservedSearch())
         return;
 
-    m_search->setText(m_preservedSearchText);
+    const QString preservedText = m_preservedSearchText;
+    const QString preservedItemId = m_preservedItemId;
+    clearPreservedSearchState();
+
+    m_search->setText(preservedText);
     m_search->setFocus();
 
     if (m_itemsReady) {
-        startSearch(m_preservedSearchText);
-        selectItemById(m_preservedItemId);
+        startSearch(preservedText);
+        selectItemById(preservedItemId);
     }
+}
+
+void QuickWindow::clearPreservedSearchState()
+{
+    m_preservedSearchText.clear();
+    m_preservedItemId.clear();
+    m_preservedSearchTimer.invalidate();
 }
 
 bool QuickWindow::shouldRestorePreservedSearch() const
@@ -2347,7 +2456,12 @@ const VaultItem* QuickWindow::cachedItemById(const QString& itemId) const
 QString QuickWindow::totpCodeForItem(const QString& itemId, QString* errorMessage) const
 {
     const VaultItem* cached = cachedItemById(itemId);
-    if (cached && !cached->totp.isEmpty()) {
+    if (cached) {
+        if (cached->totp.isEmpty()) {
+            if (errorMessage)
+                *errorMessage = uiText("이 항목에는 TOTP가 없습니다.", "This item has no TOTP.");
+            return {};
+        }
         const QString code = TotpGenerator::generateTotpCode(cached->totp, errorMessage);
         if (!code.isEmpty())
             return code;
@@ -2392,28 +2506,33 @@ void QuickWindow::moveSelection(int delta)
 
 void QuickWindow::prepareVault(bool interactive)
 {
+    const auto preparingText = [this]() {
+        return m_passwordManager->type() == PasswordManager::Type::ProtonPass
+            ? uiText("Proton Pass 준비 중...", "Preparing Proton Pass...")
+            : uiText("Bitwarden 준비 중...", "Preparing Bitwarden...");
+    };
+
     if (m_prepareWatcher.isRunning() || m_authWatcher.isRunning()) {
         if (interactive) {
             m_preloadingVault = false;
-            setBusy(true, uiText("Bitwarden 준비 중...", "Preparing Bitwarden..."));
+            m_retryInteractivePrepare = m_prepareWatcher.isRunning();
+            setBusy(true, preparingText());
             moveToConfiguredPosition();
             m_search->setEnabled(false);
         }
         return;
     }
 
+    m_retryInteractivePrepare = false;
     m_backgroundSessionCheck = !interactive && m_itemsReady;
     m_preloadingVault = !interactive;
     if (!m_backgroundSessionCheck)
         m_list->setEnabled(false);
     if (interactive) {
-        setBusy(true, uiText("Bitwarden 준비 중...", "Preparing Bitwarden..."));
+        setBusy(true, preparingText());
         moveToConfiguredPosition();
         m_search->setEnabled(false);
     }
-
-    if (interactive && m_passwordManager->type() == PasswordManager::Type::ProtonPass)
-        setBusy(true, uiText("Proton Pass 준비 중...", "Preparing Proton Pass..."));
 
     const quint64 generation = m_vaultGeneration;
     const auto manager = m_passwordManager;
@@ -2443,26 +2562,39 @@ void QuickWindow::handlePrepareFinished()
     const bool preloading = m_preloadingVault;
     const bool background = m_backgroundSessionCheck;
     const bool silentRetry = m_silentPreloadRetry;
+    const bool retryInteractive = m_retryInteractivePrepare;
     m_preloadingVault = false;
     m_silentPreloadRetry = false;
+    m_retryInteractivePrepare = false;
 
     if (!preloading)
         setBusy(false);
 
-    if (result.generation != m_vaultGeneration)
+    if (result.generation != m_vaultGeneration) {
+        if (retryInteractive)
+            prepareVault(true);
         return;
+    }
     m_list->setEnabled(true);
 
-    if (!result.available || result.statusInfo.status != PasswordManager::VaultStatus::Unlocked)
+    if (!result.available || result.statusInfo.status != PasswordManager::VaultStatus::Unlocked) {
         clearVaultCache();
+        if (result.statusInfo.status == PasswordManager::VaultStatus::Unauthenticated
+            || result.statusInfo.status == PasswordManager::VaultStatus::Locked) {
+            m_passwordManager->clearSession();
+        }
+    }
 
     if (!result.available) {
+        m_syncing = false;
         m_currentUserEmail.clear();
         m_currentServerUrl.clear();
         if (silentRetry && !isVisible()) {
             schedulePreloadRetry(30000);
             return;
         }
+        if (background && !isVisible())
+            return;
         if (preloading && !background) {
             showStartupAuthPanel(AuthMode::Login);
         } else {
@@ -2483,7 +2615,8 @@ void QuickWindow::handlePrepareFinished()
 
     switch (result.statusInfo.status) {
     case PasswordManager::VaultStatus::Unauthenticated:
-        if (silentRetry && !isVisible())
+        m_syncing = false;
+        if ((silentRetry || background) && !isVisible())
             return;
         if (preloading && !background) {
             showStartupAuthPanel(AuthMode::Login);
@@ -2493,7 +2626,8 @@ void QuickWindow::handlePrepareFinished()
         showAuthPanel(AuthMode::Login);
         return;
     case PasswordManager::VaultStatus::Locked:
-        if (silentRetry && !isVisible())
+        m_syncing = false;
+        if ((silentRetry || background) && !isVisible())
             return;
         if (preloading && !background) {
             showStartupAuthPanel(AuthMode::Unlock);
@@ -2512,22 +2646,25 @@ void QuickWindow::handlePrepareFinished()
                 m_search->setEnabled(true);
                 if (shouldRestorePreservedSearch())
                     restorePreservedSearch();
-                else
+                else if (!m_search->text().trimmed().isEmpty())
                     startSearch(m_search->text());
                 if (!detailWindowActive)
                     m_search->setFocus();
             }
-            auto action = std::move(m_pendingVaultAction);
-            m_pendingVaultAction = {};
-            if (action) {
-                m_executingVerifiedAction = true;
-                action();
-                m_executingVerifiedAction = false;
+            QVector<std::function<void()>> actions = std::move(m_pendingVaultActions);
+            m_pendingVaultActions.clear();
+            for (const auto& action : actions) {
+                if (action) {
+                    m_executingVerifiedAction = true;
+                    action();
+                    m_executingVerifiedAction = false;
+                }
             }
             return;
         }
+        m_pendingVaultActions.clear();
         if (preloading) {
-            startItemLoad(false, true);
+            startItemLoad(m_syncing, true);
             return;
         }
 
@@ -2536,9 +2673,10 @@ void QuickWindow::handlePrepareFinished()
         m_search->setPlaceholderText(uiText("비밀번호 검색", "Password search"));
         setStatus({});
         m_search->setFocus();
-        startItemLoad();
+        startItemLoad(m_syncing, false);
         return;
     case PasswordManager::VaultStatus::Unknown:
+        m_syncing = false;
         if (preloading) {
             schedulePreloadRetry(30000);
             return;
@@ -2547,9 +2685,33 @@ void QuickWindow::handlePrepareFinished()
         hideAuthPanel();
         m_search->setEnabled(false);
         setStatus(result.errorMessage.isEmpty()
-                ? uiText("Bitwarden 상태를 확인하지 못했습니다.", "Could not check Bitwarden status.")
+                ? (m_passwordManager->type() == PasswordManager::Type::ProtonPass
+                        ? uiText("Proton Pass 상태를 확인하지 못했습니다.", "Could not check Proton Pass status.")
+                        : uiText("Bitwarden 상태를 확인하지 못했습니다.", "Could not check Bitwarden status."))
                 : result.errorMessage);
         return;
+    }
+}
+
+void QuickWindow::focusAuthPrimaryInput()
+{
+    if (m_authMode == AuthMode::None)
+        return;
+
+    if (m_passwordManager->type() == PasswordManager::Type::ProtonPass) {
+        if (m_authSubmit)
+            m_authSubmit->setFocus();
+        return;
+    }
+
+    if (m_authMode == AuthMode::Login && m_authEmail && m_authEmail->text().trimmed().isEmpty()) {
+        m_authEmail->setFocus();
+        return;
+    }
+
+    if (m_authPassword) {
+        m_authPassword->setFocus();
+        m_authPassword->selectAll();
     }
 }
 
@@ -2567,24 +2729,15 @@ void QuickWindow::showStartupAuthPanel(AuthMode mode)
     raise();
     activateWindow();
 
-    const auto focusAuthInput = [this, mode] {
-        if (mode == AuthMode::Login && m_authEmail->text().trimmed().isEmpty()) {
-            m_authEmail->setFocus();
-            return;
-        }
+    focusAuthPrimaryInput();
 
-        m_authPassword->setFocus();
-        m_authPassword->selectAll();
-    };
-    focusAuthInput();
-
-    QTimer::singleShot(0, this, [this, mode, focusAuthInput] {
+    QTimer::singleShot(0, this, [this, mode] {
         if (!isVisible() || m_authMode != mode)
             return;
 
         updateWindowSize();
         moveToConfiguredPosition();
-        focusAuthInput();
+        focusAuthPrimaryInput();
     });
 }
 
@@ -2979,7 +3132,7 @@ void QuickWindow::handleAuthFinished()
 
     if (!result.ok) {
         setStatus(result.errorMessage);
-        m_authPassword->setFocus();
+        focusAuthPrimaryInput();
         return;
     }
 
@@ -3006,13 +3159,42 @@ void QuickWindow::copyPassword(QListWidgetItem* item)
     if (!item)
         return;
 
-    QString errorMessage;
     const QString itemId = item->data(ItemIdRole).toString();
+    if (itemId.isEmpty())
+        return;
+
+    if (!m_executingVerifiedAction) {
+        verifyVaultAction([this, itemId] {
+            for (int row = 0; row < m_list->count(); ++row) {
+                if (m_list->item(row)->data(ItemIdRole).toString() == itemId) {
+                    copyPassword(m_list->item(row));
+                    return;
+                }
+            }
+            if (const VaultItem* cachedItem = cachedItemById(itemId)) {
+                if (!cachedItem->password.isEmpty()) {
+                    recordRecentItem(itemId);
+                    copyTextAndHide(
+                        cachedItem->password,
+                        true,
+                        uiText("비밀번호를 복사했습니다. (30초 후 자동 삭제)", "Password copied. (Clears in 30s)"));
+                }
+            }
+        });
+        return;
+    }
+
+    QString errorMessage;
     QString password;
-    if (const VaultItem* cachedItem = cachedItemById(itemId))
+    if (const VaultItem* cachedItem = cachedItemById(itemId)) {
         password = cachedItem->password;
-    if (password.isEmpty())
+        if (password.isEmpty()) {
+            setStatus(uiText("이 항목에는 비밀번호가 없습니다.", "This item has no password."));
+            return;
+        }
+    } else {
         password = m_passwordManager->getPassword(itemId, &errorMessage);
+    }
 
     if (!errorMessage.isEmpty()) {
         scrubSecretString(password);
@@ -3036,6 +3218,39 @@ void QuickWindow::copyUsername(QListWidgetItem* item)
         return;
 
     const QString itemId = item->data(ItemIdRole).toString();
+    if (itemId.isEmpty())
+        return;
+
+    if (!m_executingVerifiedAction) {
+        const QString cachedUsernameFallback = item->data(UsernameRole).toString();
+        verifyVaultAction([this, itemId, cachedUsernameFallback] {
+            for (int row = 0; row < m_list->count(); ++row) {
+                if (m_list->item(row)->data(ItemIdRole).toString() == itemId) {
+                    copyUsername(m_list->item(row));
+                    return;
+                }
+            }
+            if (const VaultItem* cachedItem = cachedItemById(itemId)) {
+                const PrimaryCopyValue primary = primaryCopyValue(*cachedItem);
+                if (!primary.text.isEmpty()) {
+                    recordRecentItem(itemId);
+                    copyTextAndHide(
+                        primary.text,
+                        primary.sensitive,
+                        primary.sensitive
+                            ? uiText("항목 값을 복사했습니다. (30초 후 자동 삭제)", "Value copied. (Clears in 30s)")
+                            : uiText("사용자 이름을 복사했습니다.", "Username copied."));
+                    return;
+                }
+            }
+            if (!cachedUsernameFallback.isEmpty()) {
+                recordRecentItem(itemId);
+                copyTextAndHide(cachedUsernameFallback, false, uiText("사용자 이름을 복사했습니다.", "Username copied."));
+            }
+        });
+        return;
+    }
+
     if (const VaultItem* cachedItem = cachedItemById(itemId)) {
         const PrimaryCopyValue primary = primaryCopyValue(*cachedItem);
         if (!primary.text.isEmpty()) {
@@ -3048,6 +3263,8 @@ void QuickWindow::copyUsername(QListWidgetItem* item)
                     : uiText("사용자 이름을 복사했습니다.", "Username copied."));
             return;
         }
+        setStatus(uiText("이 항목에는 사용자 이름이 없습니다.", "This item has no username."));
+        return;
     }
 
     const QString cachedUsername = item->data(UsernameRole).toString();
@@ -3079,8 +3296,36 @@ void QuickWindow::copyTotp(QListWidgetItem* item)
     if (!item)
         return;
 
-    QString errorMessage;
     const QString itemId = item->data(ItemIdRole).toString();
+    if (itemId.isEmpty())
+        return;
+
+    if (!m_executingVerifiedAction) {
+        verifyVaultAction([this, itemId] {
+            for (int row = 0; row < m_list->count(); ++row) {
+                if (m_list->item(row)->data(ItemIdRole).toString() == itemId) {
+                    copyTotp(m_list->item(row));
+                    return;
+                }
+            }
+            QString errorMessage;
+            const QString totp = totpCodeForItem(itemId, &errorMessage);
+            if (!errorMessage.isEmpty()) {
+                setStatus(errorMessage);
+                return;
+            }
+            if (!totp.isEmpty()) {
+                recordRecentItem(itemId);
+                copyTextAndHide(
+                    totp,
+                    true,
+                    uiText("TOTP 코드를 복사했습니다. (30초 후 자동 삭제)", "TOTP code copied. (Clears in 30s)"));
+            }
+        });
+        return;
+    }
+
+    QString errorMessage;
     const QString totp = totpCodeForItem(itemId, &errorMessage);
 
     if (!errorMessage.isEmpty()) {
@@ -3107,19 +3352,12 @@ void QuickWindow::openItemWebsite(QListWidgetItem* item)
     if (!cached)
         return;
 
-    QString rawUrl;
+    QUrl url;
     for (const QString& candidate : cached->uris) {
-        if (!candidate.trimmed().isEmpty()) {
-            rawUrl = candidate.trimmed();
+        url = webUrlForItemUri(candidate);
+        if (url.isValid())
             break;
-        }
     }
-    if (rawUrl.isEmpty())
-        return;
-
-    if (!rawUrl.contains(QStringLiteral("://")))
-        rawUrl.prepend(QStringLiteral("https://"));
-    const QUrl url = QUrl::fromUserInput(rawUrl);
     if (!url.isValid())
         return;
 

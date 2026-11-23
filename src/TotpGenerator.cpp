@@ -80,12 +80,25 @@ TotpSpec parseTotpSpec(const QString& value, QString* errorMessage)
 
     if (secretText.startsWith(QStringLiteral("otpauth://"), Qt::CaseInsensitive)) {
         const QUrl url(secretText);
+        if (url.host().compare(QStringLiteral("totp"), Qt::CaseInsensitive) != 0) {
+            if (errorMessage)
+                *errorMessage = uiText("지원하지 않는 OTP 형식입니다.", "Unsupported OTP type.");
+            return spec;
+        }
         const QUrlQuery query(url);
         secretText = query.queryItemValue(QStringLiteral("secret"));
-        if (query.hasQueryItem(QStringLiteral("digits")))
-            spec.digits = qBound(4, query.queryItemValue(QStringLiteral("digits")).toInt(), 10);
-        if (query.hasQueryItem(QStringLiteral("period")))
-            spec.period = qBound(5, query.queryItemValue(QStringLiteral("period")).toInt(), 300);
+        if (query.hasQueryItem(QStringLiteral("digits"))) {
+            bool digitsOk = false;
+            const int parsedDigits = query.queryItemValue(QStringLiteral("digits")).toInt(&digitsOk);
+            if (digitsOk)
+                spec.digits = qBound(4, parsedDigits, 10);
+        }
+        if (query.hasQueryItem(QStringLiteral("period"))) {
+            bool periodOk = false;
+            const int parsedPeriod = query.queryItemValue(QStringLiteral("period")).toInt(&periodOk);
+            if (periodOk)
+                spec.period = qBound(5, parsedPeriod, 300);
+        }
         spec.algorithm = totpAlgorithm(query.queryItemValue(QStringLiteral("algorithm")));
     }
 
@@ -144,13 +157,13 @@ TotpCodeInfo generateTotpInfo(const QString& value, QString* errorMessage)
         | ((static_cast<unsigned char>(hmac.at(offset + 2)) & 0xff) << 8)
         | (static_cast<unsigned char>(hmac.at(offset + 3)) & 0xff);
 
-    quint32 modulo = 1;
+    quint64 modulo = 1;
     for (int index = 0; index < spec.digits; ++index)
         modulo *= 10;
 
     if (errorMessage)
         errorMessage->clear();
-    info.code = QStringLiteral("%1").arg(binary % modulo, spec.digits, 10, QLatin1Char('0'));
+    info.code = QStringLiteral("%1").arg(static_cast<quint64>(binary) % modulo, spec.digits, 10, QLatin1Char('0'));
     return info;
 }
 
