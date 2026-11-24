@@ -12,8 +12,6 @@ peekpass was designed with reference to:
 - [Trikzon/quickwarden](https://github.com/Trikzon/quickwarden)
 - [ixnas/Quickwarden](https://github.com/ixnas/Quickwarden)
 
-Development was assisted by OpenAI ChatGPT 5.5.
-
 peekpass is a small Qt Widgets desktop quick-access app for password-vault
 items. It is inspired by 1Password Quick Access and delegates vault access to
 the selected password-manager CLI instead of implementing vault encryption or
@@ -60,11 +58,11 @@ This project is still early, Windows-first software.
 
 | Login | Quick access |
 | --- | --- |
-| <img src="login.png" alt="Bitwarden login screen" width="420"> | <img src="search.png" alt="Quick access search window" width="420"> |
+| <img src="docs/screenshots/login.png" alt="Bitwarden login screen" width="420"> | <img src="docs/screenshots/search.png" alt="Quick access search window" width="420"> |
 
 | Search results | Item details | Settings |
 | --- | --- | --- |
-| <img src="result.png" alt="Search results" width="320"> | <img src="detail.png" alt="Item details" width="320"> | <img src="setting.png" alt="Settings dialog" width="320"> |
+| <img src="docs/screenshots/result.png" alt="Search results" width="320"> | <img src="docs/screenshots/detail.png" alt="Item details" width="320"> | <img src="docs/screenshots/setting.png" alt="Settings dialog" width="320"> |
 
 ## Install and Run
 
@@ -155,25 +153,29 @@ shown immediately instead.
 - `src/AppSettings.*` - Persistent settings for hotkeys, UI options, language,
   sync interval, result display, and session storage preferences.
 - `src/SettingsDialog.*` - Settings dialog UI and validation.
-- `src/WinHotkey.*` - Windows global hotkey registration.
+- `src/SingleInstance.*` - Single-instance lock and window activation forwarding.
+- `src/WinHotkey.*` - Windows global hotkey registration and validation.
 - `src/I18n.*` and `src/TranslationCatalog.cpp` - Runtime text lookup and
   built-in translations.
+- `src/icons/` and `src/peekpass.rc.in` - Embedded UI icons, Windows application
+  icon (`peekpass.ico`), and executable version metadata resource.
 - `translations/` - Qt translation source files and translation notes.
 - `packaging/windows/peekpass.iss` - Inno Setup script for the per-user Windows installer.
-- `tests/` - A fake Proton Pass CLI and client integration test using
+- `tests/` - A fake Proton Pass CLI and client/UI integration tests using
   provider-compatible command and JSON fixtures.
+- `docs/screenshots/` - Application screenshots shown in this README.
 - `docs/PROTON_PASS_VALIDATION.md` - Credential-safe live-account smoke-test
   checklist.
 
 ## Build
 
-Building from source requires CMake 3.21+, a C++17 compiler, and Qt 6.11 or a
+Building from source requires CMake 3.22+, a C++17 compiler, and Qt 6.10 or a
 compatible Qt 6 release with Widgets, Concurrent, Network, LinguistTools, and a
 matching compiler toolchain. Install the selected password-manager CLI before
 running the application.
 
 ```powershell
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:\Qt\6.11.1\mingw_64"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:\Qt\6.12.0\mingw_64"
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
@@ -204,8 +206,9 @@ peekpass follows semantic versioning (`MAJOR.MINOR.PATCH`). Keep the version in
 
 The workflow creates a `peekpass-<tag>-win64.zip` package with `peekpass.exe`,
 Qt runtime DLLs from `windeployqt`, translations, `README.md`, and `LICENSE`, plus
-a `peekpass-<version>-win64-setup.exe` installer built with Inno Setup 6.3 or later.
-Both files are attached to the GitHub Release. It can also be run manually from
+a `peekpass-<version>-win64-setup.exe` installer built with Inno Setup 6.3 or later,
+and `SHA256SUMS.txt` for in-app update verification. All files are attached to the
+GitHub Release. It can also be run manually from
 the Actions tab. To rebuild an existing tag after fixing the release workflow, run the
 workflow from `main` and enter that tag in the `release_tag` input. Leave
 `release_tag` empty for a build-only manual run. Use a new version tag for each
@@ -274,7 +277,10 @@ Ctrl+/          Open settings
 Esc             Close
 ```
 
-The tray menu provides quick access, lock/sign-out, settings, and quit actions.
+The tray menu provides quick access (**Open**), **Sync now**, **Lock / Log out**,
+**Settings**, **Check for updates...**, and **Quit** actions, while the tray tooltip
+shows the current version and active backend. Copy actions can optionally display a
+brief confirmation notification (configurable under **Settings > Behavior**).
 On Windows, **Start with Windows** reflects the actual per-user `Run` registry
 entry. peekpass verifies the write immediately and only enables it when the
 executable is deployed with its required Qt platform and compiler runtime files;
@@ -341,9 +347,8 @@ See [translations/README.md](translations/README.md) for the exact steps.
 - YubiKey, passkey, and other hardware security key authentication flows have
   not been tested yet.
 - Proton Pass command construction and JSON parsing are covered by a fake-CLI
-  integration test, but compatibility has not yet been verified against a live
-  user vault. Track that verification with
-  [`docs/PROTON_PASS_VALIDATION.md`](docs/PROTON_PASS_VALIDATION.md).
+  integration test, and full multi-item-type live verification can be tracked
+  with [`docs/PROTON_PASS_VALIDATION.md`](docs/PROTON_PASS_VALIDATION.md).
 
 ## Status
 
