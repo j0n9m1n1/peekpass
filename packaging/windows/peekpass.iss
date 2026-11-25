@@ -42,7 +42,7 @@ WizardStyle=modern
 SetupIconFile=..\..\src\icons\peekpass.ico
 #endif
 UninstallDisplayIcon={app}\peekpass.exe
-CloseApplications=yes
+CloseApplications=force
 RestartApplications=no
 
 [Tasks]
@@ -61,3 +61,28 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueName: 
 
 [Run]
 Filename: "{app}\peekpass.exe"; Description: "Launch peekpass"; Flags: nowait postinstall
+
+[Code]
+procedure StopRunningPeekpass(const ExePath: string);
+var
+  ResultCode: Integer;
+begin
+  if (ExePath <> '') and FileExists(ExePath) then
+    Exec(ExePath, '--quit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  { Fallback for older versions without --quit or hung tray instances }
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM peekpass.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(250);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  StopRunningPeekpass(ExpandConstant('{app}\peekpass.exe'));
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  StopRunningPeekpass(ExpandConstant('{app}\peekpass.exe'));
+  Result := True;
+end;

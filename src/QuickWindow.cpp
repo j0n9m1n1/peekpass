@@ -1026,7 +1026,7 @@ QuickWindow::QuickWindow(QWidget* parent)
             copyTotp(currentItem());
     });
 
-    auto* settingsShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Slash), this);
+    auto* settingsShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_Comma), this);
     connect(settingsShortcut, &QShortcut::activated, this, [this] {
         openSettings();
     });
@@ -2029,7 +2029,7 @@ void QuickWindow::updateFooter()
 
     column = 0;
     column = addShortcut(1, column, "Esc", uiText("숨기기", "Hide"));
-    column = addShortcut(1, column, "Ctrl+/", uiText("설정", "Settings"));
+    column = addShortcut(1, column, "Ctrl+,", uiText("설정", "Settings"));
     addShortcut(1,
         column,
         "Ctrl+R",

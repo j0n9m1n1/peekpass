@@ -1245,18 +1245,18 @@ void SettingsDialog::updateShortcutGuide()
     QString guide;
     if (previewKorean) {
         guide = bitwardenStyle
-            ? QStringLiteral("단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기")
-            : QStringLiteral("단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기");
+            ? QStringLiteral("단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+,: 설정\nEsc: 닫기")
+            : QStringLiteral("단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+,: 설정\nEsc: 닫기");
     } else if (selectedLanguage == QStringLiteral("en")) {
         guide = bitwardenStyle
-            ? QStringLiteral("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close")
-            : QStringLiteral("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close");
+            ? QStringLiteral("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close")
+            : QStringLiteral("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close");
     } else {
         guide = bitwardenStyle
-            ? uiText("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close",
-                     "단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기")
-            : uiText("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close",
-                     "단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+/: 설정\nEsc: 닫기");
+            ? uiText("Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close",
+                     "단축키 세트: Bitwarden\n빠른 액세스: %1\nEnter: 비밀번호 복사\nCtrl+Enter: 사용자 이름 복사\nAlt+T: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+,: 설정\nEsc: 닫기")
+            : uiText("Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close",
+                     "단축키 세트: 1Password\n빠른 액세스: %1\nCtrl+C: 사용자 이름 복사\nCtrl+Shift+C: 비밀번호 복사\nCtrl+Alt+C: TOTP 복사\nCtrl+Shift+O: 상세보기\nCtrl+R: 동기화\nCtrl+,: 설정\nEsc: 닫기");
     }
 
     m_shortcutsLabel->setText(guide.arg(hotkey));

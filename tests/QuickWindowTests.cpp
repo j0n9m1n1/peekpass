@@ -444,7 +444,9 @@ int main(int argc, char* argv[])
         if (!first.errorString().isEmpty())
             std::fprintf(stderr, "%s\n", qPrintable(first.errorString()));
         int activations = 0;
+        int quitRequests = 0;
         first.setActivationHandler([&] { ++activations; });
+        first.setQuitHandler([&] { ++quitRequests; });
         auto secondary = QtConcurrent::run([directory = runtimeDirectory.path()] {
             SingleInstance second(directory);
             const auto result = second.start();
@@ -456,6 +458,14 @@ int main(int argc, char* argv[])
         check(secondary.result() == SingleInstance::Result::ActivatedExisting,
             "Duplicate instance did not forward activation.");
         check(until([&] { return activations == 1; }), "Primary did not receive the activation message.");
+
+        auto quitter = QtConcurrent::run([directory = runtimeDirectory.path()] {
+            SingleInstance helper(directory);
+            return helper.requestQuit(0);
+        });
+        check(until([&] { return quitter.isFinished(); }), "Quit request timed out.");
+        check(quitter.result(), "Quit helper failed to signal primary instance.");
+        check(until([&] { return quitRequests == 1; }), "Primary did not receive the quit request.");
     }
     SingleInstance replacement(runtimeDirectory.path());
     check(replacement.start() == SingleInstance::Result::Primary, "Instance lock was not released on exit.");

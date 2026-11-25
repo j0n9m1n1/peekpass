@@ -4,6 +4,7 @@
 
 #include <QCryptographicHash>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QLocalSocket>
 #include <QStandardPaths>
 #include <QThread>
@@ -15,6 +16,12 @@ SingleInstance::SingleInstance(const QString& directory)
 {
 }
 
+QString SingleInstance::serverName() const
+{
+    return QStringLiteral("peekpass-") + QString::fromLatin1(
+        QCryptographicHash::hash(QDir(m_directory).absolutePath().toUtf8(), QCryptographicHash::Sha256).toHex());
+}
+
 SingleInstance::Result SingleInstance::start()
 {
     if (!QDir().mkpath(m_directory)) {
@@ -24,8 +31,7 @@ SingleInstance::Result SingleInstance::start()
             "애플리케이션 런타임 디렉터리를 만들지 못했습니다.");
         return Result::Error;
     }
-    const QString name = QStringLiteral("peekpass-") + QString::fromLatin1(
-        QCryptographicHash::hash(QDir(m_directory).absolutePath().toUtf8(), QCryptographicHash::Sha256).toHex());
+    const QString name = serverName();
     m_lock = std::make_unique<QLockFile>(QDir(m_directory).filePath(QStringLiteral("instance.lock")));
     m_lock->setStaleLockTime(0);
     if (!m_lock->tryLock()) {
@@ -61,11 +67,17 @@ SingleInstance::Result SingleInstance::start()
             auto receive = [this, socket] {
                 if (socket->bytesAvailable() < 4)
                     return;
-                if (socket->read(4) == QByteArrayLiteral("show")) {
+                const QByteArray command = socket->read(4);
+                if (command == QByteArrayLiteral("show")) {
                     if (m_activate)
                         m_activate();
                     else
                         m_pendingActivation = true;
+                } else if (command == QByteArrayLiteral("quit")) {
+                    if (m_quit)
+                        m_quit();
+                    else
+                        m_pendingQuit = true;
                 }
                 socket->disconnectFromServer();
             };
@@ -77,12 +89,57 @@ SingleInstance::Result SingleInstance::start()
     return Result::Primary;
 }
 
+bool SingleInstance::requestQuit(int waitExitMs)
+{
+    const QString name = serverName();
+    bool sent = false;
+    for (int attempt = 0; attempt < 5; ++attempt) {
+        QLocalSocket socket;
+        socket.connectToServer(name);
+        if (socket.waitForConnected(150)) {
+            socket.write("quit");
+            if (socket.bytesToWrite() == 0 || socket.waitForBytesWritten(1000)) {
+                sent = true;
+                socket.waitForDisconnected(1000);
+                break;
+            }
+        }
+        QThread::msleep(50);
+    }
+    if (!sent)
+        return false;
+
+    if (waitExitMs > 0) {
+        QLockFile lock(QDir(m_directory).filePath(QStringLiteral("instance.lock")));
+        lock.setStaleLockTime(0);
+        QElapsedTimer timer;
+        timer.start();
+        while (timer.elapsed() < waitExitMs) {
+            if (lock.tryLock(50)) {
+                lock.unlock();
+                break;
+            }
+            QThread::msleep(50);
+        }
+    }
+    return true;
+}
+
 void SingleInstance::setActivationHandler(std::function<void()> handler)
 {
     m_activate = std::move(handler);
     if (m_pendingActivation && m_activate) {
         m_pendingActivation = false;
         m_activate();
+    }
+}
+
+void SingleInstance::setQuitHandler(std::function<void()> handler)
+{
+    m_quit = std::move(handler);
+    if (m_pendingQuit && m_quit) {
+        m_pendingQuit = false;
+        m_quit();
     }
 }
 

@@ -247,9 +247,9 @@ namespace
     QT_TRANSLATE_NOOP("SettingsDialog", "Hotkey"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Choose a quick access hotkey first."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Not set"),
-    QT_TRANSLATE_NOOP("SettingsDialog", "Quick access: %1\nEnter: Copy password\nCtrl+Enter / Ctrl+C: Copy username\nCtrl+Shift+C: Copy password\nAlt+T / Ctrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close"),
-    QT_TRANSLATE_NOOP("SettingsDialog", "Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close"),
-    QT_TRANSLATE_NOOP("SettingsDialog", "Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+/: Settings\nEsc: Close")
+    QT_TRANSLATE_NOOP("SettingsDialog", "Quick access: %1\nEnter: Copy password\nCtrl+Enter / Ctrl+C: Copy username\nCtrl+Shift+C: Copy password\nAlt+T / Ctrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Shortcut set: Bitwarden\nQuick access: %1\nEnter: Copy password\nCtrl+Enter: Copy username\nAlt+T: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Shortcut set: 1Password\nQuick access: %1\nCtrl+C: Copy username\nCtrl+Shift+C: Copy password\nCtrl+Alt+C: Copy TOTP\nCtrl+Shift+O: Details\nCtrl+R: Sync\nCtrl+,: Settings\nEsc: Close")
 };
 
 [[maybe_unused]] const char* const QuickWindowPasswordManagerMessages[] = {

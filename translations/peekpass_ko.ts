@@ -1043,7 +1043,7 @@ Ctrl+Enter: Copy username
 Alt+T: Copy TOTP
 Ctrl+Shift+O: Details
 Ctrl+R: Sync
-Ctrl+/: Settings
+Ctrl+,: Settings
 Esc: Close</source>
         <translation>단축키 세트: Bitwarden
 빠른 액세스: %1
@@ -1052,7 +1052,7 @@ Ctrl+Enter: 사용자 이름 복사
 Alt+T: TOTP 복사
 Ctrl+Shift+O: 상세보기
 Ctrl+R: 동기화
-Ctrl+/: 설정
+Ctrl+,: 설정
 Esc: 닫기</translation>
     </message>
     <message>
@@ -1063,7 +1063,7 @@ Ctrl+Shift+C: Copy password
 Ctrl+Alt+C: Copy TOTP
 Ctrl+Shift+O: Details
 Ctrl+R: Sync
-Ctrl+/: Settings
+Ctrl+,: Settings
 Esc: Close</source>
         <translation>단축키 세트: 1Password
 빠른 액세스: %1
@@ -1072,7 +1072,7 @@ Ctrl+Shift+C: 비밀번호 복사
 Ctrl+Alt+C: TOTP 복사
 Ctrl+Shift+O: 상세보기
 Ctrl+R: 동기화
-Ctrl+/: 설정
+Ctrl+,: 설정
 Esc: 닫기</translation>
     </message>
     <message>

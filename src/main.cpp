@@ -7,12 +7,14 @@
 
 #include <QApplication>
 #include <QAction>
+#include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QIcon>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPixmap>
+#include <QSessionManager>
 #include <QString>
 #include <QStyle>
 #include <QSystemTrayIcon>
@@ -66,7 +68,16 @@ int main(int argc, char* argv[])
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
+    QCommandLineOption quitOption(
+        QStringLiteral("quit"),
+        QStringLiteral("Quit a running peekpass instance."));
+    parser.addOption(quitOption);
     parser.process(app);
+    if (parser.isSet(quitOption)) {
+        SingleInstance instance;
+        instance.requestQuit();
+        return 0;
+    }
     QApplication::setQuitOnLastWindowClosed(false);
     SingleInstance instance;
     const auto instanceResult = instance.start();
@@ -218,7 +229,22 @@ int main(int argc, char* argv[])
 
     QObject::connect(quitAction, &QAction::triggered, &app, [&trayIcon] {
         trayIcon.hide();
+        QApplication::closeAllWindows();
         QApplication::quit();
+    });
+
+    instance.setQuitHandler([&trayIcon] {
+        trayIcon.hide();
+        QApplication::closeAllWindows();
+        QApplication::quit();
+    });
+
+    QObject::connect(&app, &QGuiApplication::commitDataRequest, &app, [&trayIcon](QSessionManager&) {
+        trayIcon.hide();
+        QTimer::singleShot(0, qApp, [] {
+            QApplication::closeAllWindows();
+            QApplication::quit();
+        });
     });
 
     QObject::connect(&trayIcon, &QSystemTrayIcon::activated, &window,
