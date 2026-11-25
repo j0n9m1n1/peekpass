@@ -106,6 +106,36 @@ public:
         check(!QFileInfo::exists(tracePath), "Cached reopening unexpectedly invoked the provider CLI.");
         qunsetenv("PEEKPASS_FAKE_PASS_TRACE");
 
+        // Default instant-copy mode: copies immediately without blocking on slow CLI checks,
+        // and still clears owned clipboard + cache if background verification detects an external lock.
+        AppSettings::setVerifySessionBeforeCopyEnabled(false);
+        QApplication::clipboard()->setText(QStringLiteral("sentinel"));
+        qputenv("PEEKPASS_FAKE_PASS_MODE", "slow-info");
+        window.copyPassword(window.m_list->item(0));
+        check(QApplication::clipboard()->text() == QStringLiteral("fixture-password"),
+            "Default instant-copy mode did not copy immediately from cache.");
+        check(!window.m_busyBar->isVisible(),
+            "Default instant-copy mode showed the foreground busy bar.");
+        check(until([&] { return !window.m_prepareWatcher.isRunning(); }),
+            "Post-copy background session verification did not finish.");
+
+        seed(window);
+        QApplication::clipboard()->setText(QStringLiteral("sentinel"));
+        qputenv("PEEKPASS_FAKE_PASS_MODE", "locked");
+        window.copyPassword(window.m_list->item(0));
+        check(QApplication::clipboard()->text() == QStringLiteral("fixture-password"),
+            "Instant-copy mode did not copy immediately before background lock check.");
+        check(until([&] { return !window.m_itemsReady; }),
+            "Background verification after instant copy did not invalidate the cache on external lock.");
+        check(QApplication::clipboard()->text().isEmpty(),
+            "Background lock invalidation after instant copy did not clear the owned clipboard.");
+        check(window.m_cachedItems.isEmpty() && window.m_list->count() == 0,
+            "Background lock invalidation left cached secrets or result rows behind.");
+
+        // Strict verification mode: waits for live CLI session check before copying.
+        AppSettings::setVerifySessionBeforeCopyEnabled(true);
+        seed(window);
+        QApplication::clipboard()->setText(QStringLiteral("sentinel"));
         qputenv("PEEKPASS_FAKE_PASS_MODE", "slow-info");
         window.prepareVault(false);
         check(window.m_search->isEnabled() && window.m_list->isEnabled() && !window.m_busyBar->isVisible(),
@@ -141,6 +171,7 @@ public:
             "An externally locked password reached the clipboard.");
         check(window.m_cachedItems.isEmpty() && window.m_list->count() == 0,
             "External lock left cached secrets or result rows behind.");
+        AppSettings::setVerifySessionBeforeCopyEnabled(false);
 
         seed(window);
         window.hide();

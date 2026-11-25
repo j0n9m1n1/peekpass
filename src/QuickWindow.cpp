@@ -1146,14 +1146,33 @@ void QuickWindow::clearVaultCache()
     m_list->setVisible(false);
     m_list->setEnabled(true);
     ++m_clipboardGeneration;
-    if (auto* clipboard = QApplication::clipboard(); clipboard && clipboard->ownsClipboard())
-        clipboard->clear();
+    if (auto* clipboard = QApplication::clipboard()) {
+        const bool owns = clipboard->ownsClipboard();
+        const bool matchesHash = !m_lastCopiedClipboardHash.isEmpty()
+            && QCryptographicHash::hash(clipboard->text().toUtf8(), QCryptographicHash::Sha256)
+                == m_lastCopiedClipboardHash;
+        if (owns || matchesHash)
+            clipboard->clear();
+    }
+    m_lastCopiedClipboardHash.clear();
 }
 
 void QuickWindow::verifyVaultAction(std::function<void()> action)
 {
     if (m_resetting || m_authMode != AuthMode::None || m_authWatcher.isRunning())
         return;
+
+    if (!AppSettings::verifySessionBeforeCopyEnabled() && m_itemsReady && m_passwordManager->hasSession()) {
+        if (action) {
+            m_executingVerifiedAction = true;
+            action();
+            m_executingVerifiedAction = false;
+        }
+        if (!m_prepareWatcher.isRunning())
+            prepareVault(false);
+        return;
+    }
+
     m_pendingVaultActions.push_back(std::move(action));
     prepareVault(true);
 }
@@ -2536,15 +2555,20 @@ void QuickWindow::prepareVault(bool interactive)
 
     const quint64 generation = m_vaultGeneration;
     const auto manager = m_passwordManager;
-    m_prepareWatcher.setFuture(QtConcurrent::run([manager, generation] {
+    const bool skipAvailabilityCheck = m_itemsReady;
+    m_prepareWatcher.setFuture(QtConcurrent::run([manager, generation, skipAvailabilityCheck] {
         PrepareResult result;
         result.generation = generation;
         QString errorMessage;
 
-        result.available = manager->isAvailable(&errorMessage);
-        if (!result.available) {
-            result.errorMessage = errorMessage;
-            return result;
+        if (skipAvailabilityCheck) {
+            result.available = true;
+        } else {
+            result.available = manager->isAvailable(&errorMessage);
+            if (!result.available) {
+                result.errorMessage = errorMessage;
+                return result;
+            }
         }
 
         result.statusInfo = manager->statusInfo(&errorMessage);
@@ -3525,23 +3549,24 @@ void QuickWindow::copyToClipboard(const QString& text, bool sensitive)
 
     clipboard->setMimeData(mimeData);
     const quint64 clipboardGeneration = ++m_clipboardGeneration;
+    const QByteArray expectedHash = QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256);
+    m_lastCopiedClipboardHash = expectedHash;
 
     if (!sensitive)
         return;
 
-    const QByteArray expectedHash = QCryptographicHash::hash(text.toUtf8(), QCryptographicHash::Sha256);
     QTimer::singleShot(30000, this, [this, clipboardGeneration, expectedHash] {
         QClipboard* currentClipboard = QApplication::clipboard();
-        if (!currentClipboard || clipboardGeneration != m_clipboardGeneration
-            || !currentClipboard->ownsClipboard()) {
+        if (!currentClipboard || clipboardGeneration != m_clipboardGeneration)
             return;
-        }
 
         const QByteArray currentHash = QCryptographicHash::hash(
             currentClipboard->text().toUtf8(),
             QCryptographicHash::Sha256);
-        if (currentHash == expectedHash)
+        if (currentHash == expectedHash) {
             currentClipboard->clear();
+            m_lastCopiedClipboardHash.clear();
+        }
     });
 }
 

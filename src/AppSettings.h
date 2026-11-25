@@ -82,6 +82,9 @@ public:
     static bool credentialSessionStorageEnabled();
     static void setCredentialSessionStorageEnabled(bool enabled);
 
+    static bool verifySessionBeforeCopyEnabled();
+    static void setVerifySessionBeforeCopyEnabled(bool enabled);
+
     static bool startOnLoginEnabled();
     static bool setStartOnLoginEnabled(bool enabled, QString* errorMessage = nullptr);
     static bool applyStartupPreference(QString* errorMessage = nullptr);

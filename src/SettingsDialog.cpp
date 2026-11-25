@@ -261,6 +261,14 @@ SettingsDialog::SettingsDialog(QWidget* parent)
         this);
     m_credentialSessionStorageCheck->setChecked(AppSettings::credentialSessionStorageEnabled());
 
+    m_verifySessionBeforeCopyCheck = new QCheckBox(
+        uiText("Verify CLI session before every copy (strict)", "복사 전 매번 CLI 세션 확인 (엄격 모드)"),
+        this);
+    m_verifySessionBeforeCopyCheck->setChecked(AppSettings::verifySessionBeforeCopyEnabled());
+    m_verifySessionBeforeCopyCheck->setToolTip(
+        uiText("When off (default), items copy immediately from cache and the CLI session is verified in the background. When on, each copy waits for a live CLI check first.",
+               "끄면(기본값) 캐시에서 즉시 복사하고 백그라운드에서 CLI 세션을 확인합니다. 켜면 복사할 때마다 CLI 세션 확인이 끝날 때까지 기다립니다."));
+
     m_startOnLoginCheck = new QCheckBox(uiText("Start with Windows", "Windows 자동 시작"), this);
     m_startOnLoginCheck->setChecked(AppSettings::startOnLoginEnabled());
     m_startOnLoginCheck->setToolTip(
@@ -450,6 +458,7 @@ SettingsDialog::SettingsDialog(QWidget* parent)
 
     auto* securityForm = makeGroup(uiText("Security and Startup", "보안/시작"), behaviorTab);
     securityForm->addRow(m_credentialSessionStorageCheck);
+    securityForm->addRow(m_verifySessionBeforeCopyCheck);
     securityForm->addRow(m_startOnLoginCheck);
     securityForm->addRow(m_autoCheckUpdatesCheck);
 
@@ -781,6 +790,7 @@ void SettingsDialog::saveAndAccept()
     AppSettings::setCloseOnFocusLoss(m_closeOnFocusLossCheck->isChecked());
     AppSettings::setNotifyOnCopyEnabled(m_notifyOnCopyCheck->isChecked());
     AppSettings::setCredentialSessionStorageEnabled(m_credentialSessionStorageCheck->isChecked());
+    AppSettings::setVerifySessionBeforeCopyEnabled(m_verifySessionBeforeCopyCheck->isChecked());
     AppSettings::setAutoCheckUpdatesEnabled(m_autoCheckUpdatesCheck->isChecked());
     AppSettings::setBwProgramOverride(m_bwPathEdit->text());
     AppSettings::setProtonPassProgramOverride(m_protonPassPathEdit->text());

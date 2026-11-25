@@ -213,6 +213,7 @@ private:
     QVector<std::function<void()>> m_pendingVaultActions;
     quint64 m_vaultGeneration = 0;
     quint64 m_clipboardGeneration = 0;
+    QByteArray m_lastCopiedClipboardHash;
     QElapsedTimer m_preservedSearchTimer;
     QString m_preservedSearchText;
     QString m_preservedItemId;

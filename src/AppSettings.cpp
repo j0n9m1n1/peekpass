@@ -49,6 +49,7 @@ const char* ReopenRetentionSecondsKey = "window/reopenRetentionSeconds";
 const char* AutoSyncIntervalMinutesKey = "bitwarden/autoSyncIntervalMinutes";
 const char* CloseOnFocusLossKey = "window/closeOnFocusLoss";
 const char* CredentialSessionStorageEnabledKey = "security/credentialSessionStorageEnabled";
+const char* VerifySessionBeforeCopyEnabledKey = "security/verifySessionBeforeCopy";
 const char* StartOnLoginKey = "system/startOnLogin";
 const char* AutoCheckUpdatesEnabledKey = "updates/autoCheckEnabled";
 const char* LastUpdateCheckEpochSecondsKey = "updates/lastCheckEpochSeconds";
@@ -505,6 +506,16 @@ bool AppSettings::credentialSessionStorageEnabled()
 void AppSettings::setCredentialSessionStorageEnabled(bool enabled)
 {
     QSettings().setValue(CredentialSessionStorageEnabledKey, enabled);
+}
+
+bool AppSettings::verifySessionBeforeCopyEnabled()
+{
+    return QSettings().value(VerifySessionBeforeCopyEnabledKey, false).toBool();
+}
+
+void AppSettings::setVerifySessionBeforeCopyEnabled(bool enabled)
+{
+    QSettings().setValue(VerifySessionBeforeCopyEnabledKey, enabled);
 }
 
 bool AppSettings::startOnLoginEnabled()

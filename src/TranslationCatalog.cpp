@@ -338,6 +338,8 @@ namespace
     QT_TRANSLATE_NOOP("ProtonPassClient", "Could not start %1."),
     QT_TRANSLATE_NOOP("UpdateChecker", "Download redirected to an untrusted host."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Show notification after copying"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "Verify CLI session before every copy (strict)"),
+    QT_TRANSLATE_NOOP("SettingsDialog", "When off (default), items copy immediately from cache and the CLI session is verified in the background. When on, each copy waits for a live CLI check first."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Check for updates automatically on startup"),
     QT_TRANSLATE_NOOP("SettingsDialog", "Check for updates..."),
     QT_TRANSLATE_NOOP("SettingsDialog", "Current version: v%1"),

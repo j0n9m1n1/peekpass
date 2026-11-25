@@ -220,7 +220,7 @@ To package a local Release build with its Qt runtime and translations, run:
 .\packaging\windows\package.ps1 -QtDir C:\Qt\6.12.0\mingw_64
 ```
 
-This creates `dist/peekpass-0.3.8-win64-setup.exe`, the portable ZIP, and
+This creates `dist/peekpass-0.3.9-win64-setup.exe`, the portable ZIP, and
 `dist/SHA256SUMS.txt`. The script discovers Inno Setup 6 or 7 in system and
 per-user installation directories; `-IsccPath` overrides it.
 
@@ -231,8 +231,8 @@ output directories (adjust the version to match `CMakeLists.txt`):
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-  "/DAppVersion=0.3.8" `
-  "/DStageDir=$PWD\dist\peekpass-v0.3.8-win64" `
+  "/DAppVersion=0.3.9" `
+  "/DStageDir=$PWD\dist\peekpass-v0.3.9-win64" `
   "/DInstallerOutputDir=$PWD\dist" `
   ".\packaging\windows\peekpass.iss"
 ```
@@ -299,10 +299,12 @@ Windows startup, and closes the app.
   the app is running.
 - In-memory vault data is cleared when the vault is locked or the app exits.
 - Quick access reopens immediately from its in-memory cache, including during
-  background refreshes. CLI session state is checked before copying or opening
-  details, with background checks every 15 seconds. Failed checks or
-  refreshes discard cached data, close detail windows, and clear owned clipboard
-  content.
+  background refreshes. By default, copy and detail actions run immediately from
+  the cache and verify the CLI session in the background right afterward (in
+  addition to periodic 15-second background checks); you can enable **Verify CLI
+  session before every copy (strict)** under **Settings > Behavior** to wait for
+  a live CLI check before every copy. Failed checks or refreshes discard cached
+  data, close detail windows, and clear owned clipboard content.
 - Passwords and TOTP codes copied to the clipboard are cleared after 30 seconds if
   peekpass still owns the same clipboard content.
 - Sensitive clipboard entries opt out of Windows clipboard history and cloud sync.

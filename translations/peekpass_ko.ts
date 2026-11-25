@@ -1092,6 +1092,14 @@ Esc: 닫기</translation>
         <translation>복사 완료 알림 표시</translation>
     </message>
     <message>
+        <source>Verify CLI session before every copy (strict)</source>
+        <translation>복사 전 매번 CLI 세션 확인 (엄격 모드)</translation>
+    </message>
+    <message>
+        <source>When off (default), items copy immediately from cache and the CLI session is verified in the background. When on, each copy waits for a live CLI check first.</source>
+        <translation>끄면(기본값) 캐시에서 즉시 복사하고 백그라운드에서 CLI 세션을 확인합니다. 켜면 복사할 때마다 CLI 세션 확인이 끝날 때까지 기다립니다.</translation>
+    </message>
+    <message>
         <source>Check for updates automatically on startup</source>
         <translation>시작 시 자동으로 업데이트 확인</translation>
     </message>

@@ -72,6 +72,7 @@ private:
     QCheckBox* m_closeOnFocusLossCheck = nullptr;
     QCheckBox* m_notifyOnCopyCheck = nullptr;
     QCheckBox* m_credentialSessionStorageCheck = nullptr;
+    QCheckBox* m_verifySessionBeforeCopyCheck = nullptr;
     QCheckBox* m_startOnLoginCheck = nullptr;
     QCheckBox* m_autoCheckUpdatesCheck = nullptr;
     QPushButton* m_checkUpdatesButton = nullptr;
